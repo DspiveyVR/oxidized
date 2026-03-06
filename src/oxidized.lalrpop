@@ -1,0 +1,28 @@
+use crate::ast::*;
+
+grammar;
+
+pub Expr: Box<Expression> = {
+    ConstantValue => Box::new(Expression::Constant(<>)),
+    "let" <i: Identifier> "=" <e: Expr> => Box::new(Expression::Let(i.to_string(), e)),
+};
+
+pub BaseTypeName: Type = { 
+    "bool" => Type::Base(BaseType::Bool),
+    "u32" => Type::Base(BaseType::U32), 
+    "unit" => Type::Base(BaseType::Unit)
+};
+
+pub ConstantValue: Constant = { 
+    "()" => Constant::Unit, 
+    "true" => Constant::True, 
+    "false" => Constant::False,
+    <n: Number> => Constant::Number(n.to_string())
+};
+Number = r"[0-9]+";
+Identifier = r"[a-zA-Z_]\w*";
+
+pub Keyword = { Struct, Letrgn, OwnershipQualifier };
+Struct = { "struct" }; 
+Letrgn = { "letrgn" };
+OwnershipQualifier = { "shrd", "uniq" };

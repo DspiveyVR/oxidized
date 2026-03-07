@@ -2,9 +2,53 @@ use crate::ast::*;
 
 grammar;
 
+pub Statements: Vec<Box<Expression>> = {
+    <mut v:(<Expr> ";")*> <e:Expr?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
 pub Expr: Box<Expression> = {
     ConstantValue => Box::new(Expression::Constant(<>)),
+    "(" <e: Expr> ")" => e,
     "let" <i: Identifier> "=" <e: Expr> => Box::new(Expression::Let(i.to_string(), e)),
+    // <p: PlaceExpr> => Box::new(Expression::PlaceExpression(*p))
+};
+
+PlaceStart: PlaceLiteral = {
+    <i: Identifier> "." <n: Number> => PlaceLiteral(vec![i.to_string(), n.to_string()])
+};
+
+pub Place: PlaceLiteral = {
+    PlaceStart,
+    <mut v:Place> "." <e:Number> => {
+        v.0.push(e.to_string());
+        v
+    }
+};
+
+pub PlaceExpr: Box<PlaceExpression> = {
+    #[precedence(level="0")]
+    <i: Identifier> => Box::new(PlaceExpression::Variable(i.to_string())),
+    #[precedence(level="0")] 
+    <p: Place> => Box::new(PlaceExpression::Place(p)),
+    #[precedence(level="0")]
+    <p: PlaceExpr> "." <n: PlaceExpr> => match *p {
+        PlaceExpression::Variable(_) | PlaceExpression::Place(_) => p,
+        PlaceExpression::Deref(p) => {
+            Box::new(PlaceExpression::PlaceExpressions(vec![Box::new(PlaceExpression::Deref(p)), n]))
+        }
+        PlaceExpression::PlaceExpressions(mut p) => {
+            p.push(n);
+            Box::new(PlaceExpression::PlaceExpressions(p))
+        }
+    },
+    #[precedence(level="2")] #[assoc(side="right")]
+    "*" <p: PlaceExpr> => Box::new(PlaceExpression::Deref(vec![p])),
 };
 
 pub BaseTypeName: Type = { 
@@ -19,6 +63,7 @@ pub ConstantValue: Constant = {
     "false" => Constant::False,
     <n: Number> => Constant::Number(n.to_string())
 };
+
 Number = r"[0-9]+";
 Identifier = r"[a-zA-Z_]\w*";
 

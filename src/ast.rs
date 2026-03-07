@@ -17,8 +17,19 @@ pub enum BaseType {
 #[derive(Debug)]
 pub enum Expression {
     Constant(Constant),
-    Sequence(Box<Expression>, Box<Expression>),
     Let(String, Box<Expression>),
+    PlaceExpression(PlaceExpression),
+}
+
+#[derive(Debug)]
+pub struct PlaceLiteral(pub Vec<String>);
+
+#[derive(Debug)]
+pub enum PlaceExpression {
+    Variable(String),
+    Deref(Vec<Box<PlaceExpression>>),
+    Place(PlaceLiteral),
+    PlaceExpressions(Vec<Box<PlaceExpression>>),
 }
 
 #[derive(Debug)]

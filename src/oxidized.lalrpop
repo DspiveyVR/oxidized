@@ -13,43 +13,69 @@ pub Statements: Vec<Box<Expression>> = {
 };
 
 pub Expr: Box<Expression> = {
+    #[precedence(level="0")]
     ConstantValue => Box::new(Expression::Constant(<>)),
     "(" <e: Expr> ")" => e,
-    "let" <i: Identifier> "=" <e: Expr> => Box::new(Expression::Let(i.to_string(), e)),
-    // <p: PlaceExpr> => Box::new(Expression::PlaceExpression(*p))
-};
-
-PlaceStart: PlaceLiteral = {
-    <i: Identifier> "." <n: Number> => PlaceLiteral(vec![i.to_string(), n.to_string()])
-};
-
-pub Place: PlaceLiteral = {
-    PlaceStart,
-    <mut v:Place> "." <e:Number> => {
-        v.0.push(e.to_string());
-        v
-    }
-};
-
-pub PlaceExpr: Box<PlaceExpression> = {
-    #[precedence(level="0")]
-    <i: Identifier> => Box::new(PlaceExpression::Variable(i.to_string())),
-    #[precedence(level="0")] 
-    <p: Place> => Box::new(PlaceExpression::Place(p)),
-    #[precedence(level="0")]
-    <p: PlaceExpr> "." <n: PlaceExpr> => match *p {
-        PlaceExpression::Variable(_) | PlaceExpression::Place(_) => p,
-        PlaceExpression::Deref(p) => {
-            Box::new(PlaceExpression::PlaceExpressions(vec![Box::new(PlaceExpression::Deref(p)), n]))
+    <i: Identifier> => Box::new(Expression::Variable(i.to_string())),
+    #[precedence(level="1")] #[assoc(side="left")]
+    <e: Expr> "." <n: Number> => match *e {
+        Expression::PathAccess(exp, vect) => {
+            let mut new_vec = vect.clone();
+            new_vec.push(n.to_string());
+            let new_path = Expression::PathAccess(exp.clone(), new_vec);
+            Box::new(new_path)
         }
-        PlaceExpression::PlaceExpressions(mut p) => {
-            p.push(n);
-            Box::new(PlaceExpression::PlaceExpressions(p))
+        _ => {
+            let mut ex = Expression::PathAccess(e, vec![n.to_string()]);
+            Box::new(ex)
         }
     },
     #[precedence(level="2")] #[assoc(side="right")]
-    "*" <p: PlaceExpr> => Box::new(PlaceExpression::Deref(vec![p])),
+    "*" <e: Expr> => Box::new(Expression::Deref(e)),
+    #[precedence(level="3")] #[assoc(side="right")]
+    "let" <i: Identifier> "=" <e: Expr> => Box::new(Expression::Let(i.to_string(), e)),
 };
+
+// PathStart: Vec<String> = {
+//     "." <n: Number> => vec![n.to_string()]
+// };
+
+// IncompletePath: Vec<String> = {
+//     <p: PathStart> "." => p,
+//     <i:IncompletePath> "." => i,
+//     <mut i:IncompletePath> <n: Number> "." => {
+//         i.push(n.to_string());
+//         i
+//     }       
+// };
+
+// pub Path: Vec<String> = {
+//     <mut i:IncompletePath> <n: Number> => {
+//         i.push(n.to_string());
+//         i
+//     }
+// };
+
+// (*test).2.3.4
+// pub PlaceExpr: Box<PlaceExpression> = {
+//     #[precedence(level="0")]
+//     <i: Identifier> PlaceExpr => Box::new(PlaceExpression::Variable(i.to_string())),
+//     #[precedence(level="0")] 
+//     <p: Place> => Box::new(PlaceExpression::Place(p)),
+//     #[precedence(level="0")]
+//     <p: PlaceExpr> "." <n: PlaceExpr> => match *p {
+//         PlaceExpression::Variable(_) | PlaceExpression::Place(_) => p,
+//         PlaceExpression::Deref(p) => {
+//             Box::new(PlaceExpression::PlaceExpressions(vec![Box::new(PlaceExpression::Deref(p)), n]))
+//         }
+//         PlaceExpression::PlaceExpressions(mut p) => {
+//             p.push(n);
+//             Box::new(PlaceExpression::PlaceExpressions(p))
+//         }
+//     },
+//     #[precedence(level="2")] #[assoc(side="right")]
+//     "*" <p: PlaceExpr> => Box::new(PlaceExpression::Deref(vec![p])),
+// };
 
 pub BaseTypeName: Type = { 
     "bool" => Type::Base(BaseType::Bool),

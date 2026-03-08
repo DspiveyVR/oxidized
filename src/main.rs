@@ -6,7 +6,7 @@ lalrpop_mod!(pub oxidized);
 
 fn main() {
     // println!("{:?}", oxidized::StatementsParser::new().parse("let test = 123; let test2 = false;").unwrap());
-    println!("{:?}", oxidized::PlaceExprParser::new().parse("*test.2.3.4").unwrap());
+    println!("{:?}", oxidized::ExprParser::new().parse("(id.1)").unwrap());
 }
 
 

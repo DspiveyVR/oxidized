@@ -1,38 +1,29 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Base(BaseType),
     Aggregate(AggregateType),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AggregateType {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BaseType {
     Bool,
     U32,
     Unit,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Constant(Constant),
-    Let(String, Box<Expression>),
-    PlaceExpression(PlaceExpression),
-}
-
-#[derive(Debug)]
-pub struct PlaceLiteral(pub Vec<String>);
-
-#[derive(Debug)]
-pub enum PlaceExpression {
     Variable(String),
-    Deref(Vec<Box<PlaceExpression>>),
-    Place(PlaceLiteral),
-    PlaceExpressions(Vec<Box<PlaceExpression>>),
+    Let(String, Box<Expression>),
+    Deref(Box<Expression>),
+    PathAccess(Box<Expression>, Vec<String>)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Constant {
     Unit,
     True,
@@ -40,14 +31,14 @@ pub enum Constant {
     Number(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Keyword {
     Struct,
     Letrgn,
     OwnershipQualifier(OwnershipQualifier),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OwnershipQualifier {
     Shrd,
     Uniq,

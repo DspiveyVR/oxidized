@@ -2,8 +2,13 @@ use crate::ast::*;
 
 grammar;
 
-pub Statements: Vec<Box<Expression>> = {
-    <mut v:(<Expr> ";")*> <e:Expr?> => match e {
+pub Block: Block = {
+    "letrgn" "<" <r: Regions> ">" "{" <s: TermList> "}" => Block::Letrgn(r, s),
+    "{" <s: TermList> "}" => Block::EmptyBlock(s)
+};
+
+Regions: Vec<String> = {
+    <mut v:("'" <Identifier> ",")*> <e:("'" <Identifier>)?> => match e {
         None => v,
         Some(e) => {
             v.push(e);
@@ -12,70 +17,89 @@ pub Statements: Vec<Box<Expression>> = {
     }
 };
 
-pub Expr: Box<Expression> = {
-    #[precedence(level="0")]
+TermList: Vec<Term> = {
+    <t: Term> => vec![t],
+    <mut v:TermList> <s:Term> => {
+        v.push(s);
+        v
+    }
+};
+
+Term: Term = {
+    <b: Block> => Term::Block(b),
+    <s: Statement> => Term::Statement(s)
+};
+
+Statement: Statement = {
+    "struct" <i: Identifier> "(" <fields: TypeList> ")" ";" => Statement::StructDeclaration(i, fields),
+    <e: Expr> ";" => Statement::Expression(*e),
+};
+
+TypeList: Vec<Type> = {
+    <mut v:(<BaseTypeName> ",")*> <e:BaseTypeName?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+Expr: Box<Expression> = {
+    PrimaryExpression,
+    UnaryExpression,
+    PathAccess,
+    "let" <m: "mut"?> <i: Identifier> "=" <r: (<ReferenceDeclaration>)?> <e: Expr> => 
+        Box::new(Expression::Let(i, match m { None => false, Some(_) => true }, r, e)),
+};
+
+ExprCSV = Comma<Expr>;
+
+Comma<T>: Vec<T> = {
+    <mut v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+PrimaryExpression: Box<Expression> = {
     ConstantValue => Box::new(Expression::Constant(<>)),
     "(" <e: Expr> ")" => e,
-    <i: Identifier> => Box::new(Expression::Variable(i.to_string())),
-    #[precedence(level="1")] #[assoc(side="left")]
-    <e: Expr> "." <n: Number> => match *e {
+    <i: Identifier> => Box::new(Expression::Variable(i)),
+};
+
+UnaryExpression: Box<Expression> = {
+    "*" <e: Expr> => Box::new(Expression::Deref(e)),
+    <i: Identifier> "(" <csv: ExprCSV> ")" => Box::new(Expression::ConstructorCall(i, Box::new(Expression::CSV(csv))))
+};
+
+PathAccess: Box<Expression> = {
+    <e: PrimaryExpression> "." <n: Number> => {
+        let ex = Expression::PathAccess(e, vec![n]);
+        Box::new(ex)
+    },
+    <e: PathAccess> "." <n: Number> => match *e {
         Expression::PathAccess(exp, vect) => {
             let mut new_vec = vect.clone();
-            new_vec.push(n.to_string());
+            new_vec.push(n);
             let new_path = Expression::PathAccess(exp.clone(), new_vec);
             Box::new(new_path)
         }
-        _ => {
-            let mut ex = Expression::PathAccess(e, vec![n.to_string()]);
-            Box::new(ex)
-        }
-    },
-    #[precedence(level="2")] #[assoc(side="right")]
-    "*" <e: Expr> => Box::new(Expression::Deref(e)),
-    #[precedence(level="3")] #[assoc(side="right")]
-    "let" <i: Identifier> "=" <e: Expr> => Box::new(Expression::Let(i.to_string(), e)),
+        _ => { e }
+    }
 };
 
-// PathStart: Vec<String> = {
-//     "." <n: Number> => vec![n.to_string()]
-// };
+ReferenceDeclaration: ReferenceDeclaration = {
+    "&" "'" <region: Identifier> <o: OwnershipQualifier> => ReferenceDeclaration(region, o)
+};
 
-// IncompletePath: Vec<String> = {
-//     <p: PathStart> "." => p,
-//     <i:IncompletePath> "." => i,
-//     <mut i:IncompletePath> <n: Number> "." => {
-//         i.push(n.to_string());
-//         i
-//     }       
-// };
-
-// pub Path: Vec<String> = {
-//     <mut i:IncompletePath> <n: Number> => {
-//         i.push(n.to_string());
-//         i
-//     }
-// };
-
-// (*test).2.3.4
-// pub PlaceExpr: Box<PlaceExpression> = {
-//     #[precedence(level="0")]
-//     <i: Identifier> PlaceExpr => Box::new(PlaceExpression::Variable(i.to_string())),
-//     #[precedence(level="0")] 
-//     <p: Place> => Box::new(PlaceExpression::Place(p)),
-//     #[precedence(level="0")]
-//     <p: PlaceExpr> "." <n: PlaceExpr> => match *p {
-//         PlaceExpression::Variable(_) | PlaceExpression::Place(_) => p,
-//         PlaceExpression::Deref(p) => {
-//             Box::new(PlaceExpression::PlaceExpressions(vec![Box::new(PlaceExpression::Deref(p)), n]))
-//         }
-//         PlaceExpression::PlaceExpressions(mut p) => {
-//             p.push(n);
-//             Box::new(PlaceExpression::PlaceExpressions(p))
-//         }
-//     },
-//     #[precedence(level="2")] #[assoc(side="right")]
-//     "*" <p: PlaceExpr> => Box::new(PlaceExpression::Deref(vec![p])),
-// };
+OwnershipQualifier: OwnershipQualifier = { 
+    "shrd" => OwnershipQualifier::Shrd, 
+    "uniq" => OwnershipQualifier::Uniq
+};
 
 pub BaseTypeName: Type = { 
     "bool" => Type::Base(BaseType::Bool),
@@ -87,13 +111,12 @@ pub ConstantValue: Constant = {
     "()" => Constant::Unit, 
     "true" => Constant::True, 
     "false" => Constant::False,
-    <n: Number> => Constant::Number(n.to_string())
+    <n: Number> => Constant::Number(n)
 };
 
-Number = r"[0-9]+";
-Identifier = r"[a-zA-Z_]\w*";
-
-pub Keyword = { Struct, Letrgn, OwnershipQualifier };
-Struct = { "struct" }; 
-Letrgn = { "letrgn" };
-OwnershipQualifier = { "shrd", "uniq" };
+Number: u32 = {
+    <s: r"[0-9]+"> => s.parse::<u32>().expect("Failed to parse integer")
+};
+Identifier: String = {
+    <i: r"[a-zA-Z_]\w*"> => i.to_string()
+};

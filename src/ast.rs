@@ -15,12 +15,32 @@ pub enum BaseType {
 }
 
 #[derive(Debug, Clone)]
+pub enum Term {
+    Block(Block),
+    Statement(Statement)
+}
+
+#[derive(Debug, Clone)]
+pub enum Block {
+    Letrgn(Vec<String>, Vec<Term>),
+    EmptyBlock(Vec<Term>)
+}
+
+#[derive(Debug, Clone)]
+pub enum Statement {
+    StructDeclaration(String, Vec<Type>),
+    Expression(Expression)
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Constant(Constant),
     Variable(String),
-    Let(String, Box<Expression>),
+    Let(String, bool, Option<ReferenceDeclaration>, Box<Expression>),
     Deref(Box<Expression>),
-    PathAccess(Box<Expression>, Vec<String>)
+    PathAccess(Box<Expression>, Vec<u32>),
+    CSV(Vec<Box<Expression>>),
+    ConstructorCall(String, Box<Expression>)
 }
 
 #[derive(Debug, Clone)]
@@ -28,15 +48,11 @@ pub enum Constant {
     Unit,
     True,
     False,
-    Number(String),
+    Number(u32),
 }
 
 #[derive(Debug, Clone)]
-pub enum Keyword {
-    Struct,
-    Letrgn,
-    OwnershipQualifier(OwnershipQualifier),
-}
+pub struct ReferenceDeclaration(pub String, pub OwnershipQualifier);
 
 #[derive(Debug, Clone)]
 pub enum OwnershipQualifier {

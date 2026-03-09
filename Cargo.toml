@@ -5,6 +5,7 @@ edition = "2024"
 
 # The generated code depends on lalrpop-util.
 [dependencies]
+color-print = "0.3.7"
 lalrpop-util = { version = "0.22.2", features = ["lexer", "unicode"] }
 
 

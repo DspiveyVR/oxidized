@@ -5,7 +5,7 @@ use lalrpop_util::lalrpop_mod;
 lalrpop_mod!(pub oxidized);
 
 fn main() {
-    println!("{:?}", oxidized::BlockParser::new().parse("
+    println!("{}", oxidized::BlockParser::new().parse("
     {
 
     struct Obj(u32);

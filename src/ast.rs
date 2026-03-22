@@ -19,31 +19,21 @@ pub enum BaseType {
 }
 
 #[derive(Debug, Clone)]
-pub enum Term {
-    Block(Block),
-    Statement(Statement),
-}
-
-#[derive(Debug, Clone)]
-pub enum Block {
-    Letrgn(Vec<String>, Vec<Term>),
-    EmptyBlock(Vec<Term>),
-}
-
-#[derive(Debug, Clone)]
-pub enum Statement {
-    StructDeclaration(String, Vec<Type>),
-    Expression(Expression),
-}
-
-#[derive(Debug, Clone)]
 pub enum Expression {
     Constant(Constant),
     Variable(String),
-    Let(String, bool, Option<ReferenceDeclaration>, Box<Expression>),
+    Let {
+        name: String,
+        is_mut: bool,
+        ref_decl: Option<ReferenceDeclaration>,
+        e1: Box<Expression>,
+        e2: Box<Expression>,
+    },
     Deref(Box<Expression>),
     PathAccess(Box<Expression>, Vec<u32>),
-    CSV(Vec<Box<Expression>>),
+    Letrgn(Vec<String>, Box<Expression>),
+    Sequence(Box<Expression>, Box<Expression>),
+    CSV(Box<Expression>, Box<Expression>),
     ConstructorCall(String, Box<Expression>),
 }
 
@@ -63,7 +53,7 @@ pub enum OwnershipQualifier {
     Shrd,
     Uniq,
 }
-
+/*
 impl Display for Term {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -118,3 +108,4 @@ impl Display for Block {
         }
     }
 }
+*/

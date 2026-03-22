@@ -4,10 +4,9 @@ use lalrpop_util::lalrpop_mod;
 
 lalrpop_mod!(pub oxidized);
 
-struct Obj(String);
 fn main() {
     println!(
-        "{}",
+        "{:?}",
         oxidized::BlockParser::new()
             .parse(
                 "
@@ -25,9 +24,6 @@ fn main() {
             )
             .unwrap()
     );
-
-    let mut obj = Obj(String::new());
-    let test1 = &mut obj;
 }
 
 #[test]

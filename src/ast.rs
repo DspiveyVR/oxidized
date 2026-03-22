@@ -1,4 +1,4 @@
-use std::fmt::{Display, format};
+use std::fmt::Display;
 
 use color_print;
 
@@ -68,7 +68,7 @@ impl Display for Term {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Term::Block(block) => return write!(f, "{}", block),
-            Term::Statement(statement) => return write!(f, "{:?}\n\n", statement),
+            Term::Statement(statement) => return write!(f, "{:?};\n\n", statement),
         }
     }
 }

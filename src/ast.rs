@@ -1,22 +1,21 @@
 use std::fmt::Display;
+// use color_print;
 
-use color_print;
+// #[derive(Debug, Clone)]
+// pub enum Type {
+//     Base(BaseType),
+//     Aggregate(AggregateType),
+// }
 
-#[derive(Debug, Clone)]
-pub enum Type {
-    Base(BaseType),
-    Aggregate(AggregateType),
-}
+// #[derive(Debug, Clone)]
+// pub struct AggregateType {}
 
-#[derive(Debug, Clone)]
-pub struct AggregateType {}
-
-#[derive(Debug, Clone)]
-pub enum BaseType {
-    Bool,
-    U32,
-    Unit,
-}
+// #[derive(Debug, Clone)]
+// pub enum BaseType {
+//     Bool,
+//     U32,
+//     Unit,
+// }
 
 #[derive(Debug, Clone)]
 pub enum Expression {
@@ -26,15 +25,14 @@ pub enum Expression {
         name: String,
         is_mut: bool,
         ref_decl: Option<ReferenceDeclaration>,
-        e1: Box<Expression>,
-        e2: Box<Expression>,
+        e: Box<Expression>,
     },
     Deref(Box<Expression>),
     PathAccess(Box<Expression>, Vec<u32>),
     Letrgn(Vec<String>, Box<Expression>),
     Sequence(Box<Expression>, Box<Expression>),
-    CSV(Box<Expression>, Box<Expression>),
-    ConstructorCall(String, Box<Expression>),
+    CSV(Vec<Box<Expression>>),
+    // ConstructorCall(String, Box<Expression>), // doesn't matter rn cause its just named tuples
 }
 
 #[derive(Debug, Clone)]
@@ -53,59 +51,30 @@ pub enum OwnershipQualifier {
     Shrd,
     Uniq,
 }
-/*
-impl Display for Term {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Term::Block(block) => return write!(f, "{}", block),
-            Term::Statement(statement) => return write!(f, "{:?};\n\n", statement),
-        }
-    }
-}
 
-impl Display for Block {
+impl Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Block::Letrgn(regions, terms) => {
-                let region_str = regions
-                    .iter()
-                    .map(|r| format!("'{}", r))
-                    .collect::<Vec<String>>()
-                    .join(", ");
-                let printed_terms = terms
-                    .iter()
-                    .map(|t| format!("{}", t))
-                    .collect::<Vec<String>>();
-                let tabbed_terms = printed_terms
-                    .iter()
-                    .map(|term| {
-                        term.lines()
-                            .map(|l| format!("\t{}", l))
-                            .collect::<Vec<String>>()
-                            .join("\n")
-                    })
-                    .collect::<Vec<String>>();
-                let body = tabbed_terms.join("");
-                return write!(f, "letrgn<{}> {{\n{}\n}}", region_str, body);
+            Expression::Sequence(e1, e2) => return write!(f, "\n    {};\n    {}", e1, e2),
+            Expression::Let {
+                name,
+                is_mut,
+                ref_decl,
+                e,
+            } => {
+                return write!(
+                    f,
+                    "let {} {} = {:?} {}",
+                    if *is_mut { "mut" } else { "" },
+                    name,
+                    ref_decl,
+                    e
+                );
             }
-            Block::EmptyBlock(terms) => {
-                let printed_terms = terms
-                    .iter()
-                    .map(|t| format!("{}", t))
-                    .collect::<Vec<String>>();
-                let tabbed_terms = printed_terms
-                    .iter()
-                    .map(|term| {
-                        term.lines()
-                            .map(|l| format!("\t{}", l))
-                            .collect::<Vec<String>>()
-                            .join("\n")
-                    })
-                    .collect::<Vec<String>>();
-                let body = tabbed_terms.join("");
-                return write!(f, "{{\n{}\n}}", body);
+            Expression::Letrgn(regions, e) => {
+                return write!(f, "letrgn <{:?}> {{{}\n}}", regions, e);
             }
+            _ => return write!(f, "{:?}", self),
         }
     }
 }
-*/

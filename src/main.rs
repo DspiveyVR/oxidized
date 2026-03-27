@@ -6,20 +6,17 @@ lalrpop_mod!(pub oxidized);
 
 fn main() {
     println!(
-        "{:?}",
-        oxidized::BlockParser::new()
+        "{}",
+        oxidized::ExprParser::new()
             .parse(
                 "
-    {
 
-    struct Obj(u32, u32);
     letrgn<'y, 'z> {
-        let mut x = Obj(5, 4);
+        let mut x = (5, 4);
         let y = &'y uniq x;
-        let z = &'z uniq *y;
+        let z = &'z uniq *y; ()
     }
 
-    }
     "
             )
             .unwrap()

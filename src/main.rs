@@ -1,4 +1,5 @@
 mod ast;
+mod static_analysis;
 
 use lalrpop_util::lalrpop_mod;
 

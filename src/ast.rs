@@ -35,6 +35,31 @@ pub enum Expression {
     // ConstructorCall(String, Box<Expression>), // doesn't matter rn cause its just named tuples
 }
 
+pub enum PlaceExpression {
+    Deref(Box<PlaceExpression>),
+    PathAccess(Box<PlaceExpression>, Vec<u32>),
+    Variable(String),
+}
+
+impl TryFrom<Expression> for PlaceExpression {
+    type Error = String;
+
+    fn try_from(value: Expression) -> Result<Self, Self::Error> {
+        match value {
+            Expression::Deref(e) => {
+                let place_expression = (*e).try_into()?;
+                Ok(Self::Deref(Box::new(place_expression)))
+            }
+            Expression::PathAccess(e, p) => {
+                let place_expression = (*e).try_into()?;
+                Ok(Self::PathAccess(Box::new(place_expression), p))
+            }
+            Expression::Variable(v) => Ok(Self::Variable(v)),
+            _ => Err("Not a valid place expression".to_string()),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Constant {
     Unit,

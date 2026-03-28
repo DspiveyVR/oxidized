@@ -12,8 +12,8 @@ OMISSIONS:
 
 unsized types (i.e. slices)
 
-closures (so i think i don't need frame typings. 
-    idk thi might be relevant just for functions. 
+closures (so i think i don't need frame typings.
+    idk thi might be relevant just for functions.
     though initially i think i can just work with global code)
 
 binary sums (i.e Either<...>)
@@ -35,8 +35,8 @@ how directly can these rules be translated to code?  Should I write a higher ord
 
 
 enum SizedType {
-    base type, 
-    type var, 
+    base type,
+    type var,
     reference, // this, for example would be a struct type to contain this type information.  many of these variants can be struct types.
     etc..
 }
@@ -67,24 +67,24 @@ struct Type {
 // different envs (abstract, stack, etc.) could be different instances of this type
 // naw uh cna have differnt types bc uh the different envs hold diff data
 
-// I think the stack and continuation typings will be structurally identical but semantically distinct.  I.e. they will be stored 
+// I think the stack and continuation typings will be structurally identical but semantically distinct.  I.e. they will be stored
 // in separate variables.
 struct AbstractTyping {
     // I think these would be "kinds"
-    Vec<AbstractTypes>, 
+    Vec<AbstractTypes>,
     Vec<AbstractRegions>,
     Vec<Frames>
 }
 
 struct StackTyping {
-    Vec<ConcreteTypes>, 
+    Vec<ConcreteTypes>,
     Vec<ConcreteRegions>,
     Vec<Frames> // ?
 }
 
 
 // for now i think i can start with the rule for chekcing the innner expression of a function (that is, the global code) , then gofrom there.
-// assuming expr is file scope 
+// assuming expr is file scope
 fn WFGlobalEnv(Expr e) {
     match e.firstChild() {
         Start here at the global level, go through each child in the ast and  run the type checking rules, the type rules should basically be
@@ -95,7 +95,7 @@ fn WFGlobalEnv(Expr e) {
 // Ok i think the continuation typing can be local to each function and then the fn will return the updated stack typing based on the tmp one.
 // So then the stack typing is not global state but is a snapshot passed into each function
 
-pseudocode for: 
+pseudocode for:
     struct Obj(u32, u32);
     letrgn<'y, 'z> {
         let mut x = Obj(5, 4);
@@ -131,3 +131,65 @@ fn t_seq(exp, stack_typing) {
 
 
 */
+use crate::ast::{Expression, OwnershipQualifier, PlaceExpression};
+
+struct Type<'a> {
+    variant: TypeVariant<'a>,
+    region: &'a Region,
+    is_sized: Ternary,
+    is_dead: Ternary,
+    copyable: bool,
+}
+
+enum BaseType {
+    Bool,
+    U32,
+    Unit,
+}
+
+struct ReferenceType<'a> {
+    // region_name: String,
+    ownership_qualifier: OwnershipQualifier,
+    target_type: Box<Type<'a>>,
+}
+
+enum TypeVariant<'a> {
+    Base(BaseType),
+    Reference(ReferenceType<'a>),
+    Tuple(Vec<Box<Type<'a>>>),
+}
+
+enum RegionVariant {
+    Loans(Vec<PlaceExpression>),
+    Owned(PlaceExpression),
+}
+
+struct ConcreteRegion {
+    name: String,
+    variant: RegionVariant,
+}
+
+enum RegionLevel {
+    ConcreteRegion(ConcreteRegion),
+    // AbstractRegion
+}
+
+struct Region {
+    name: Option<String>,
+    region: RegionLevel,
+}
+
+enum Ternary {
+    Yes,
+    No,
+    Maybe,
+}
+
+struct ConcreteTyping<'a> {
+    types: Vec<Type<'a>>,
+    regions: Vec<Region>,
+}
+
+impl Expression {
+    // type rules here
+}

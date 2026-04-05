@@ -5,24 +5,37 @@ grammar;
 pub Expr: Box<Expression> = {
     #[precedence(level="0")]
     ConstantValue => Box::new(Expression::Constant(<>)),
-    <i: Identifier> => Box::new(Expression::Variable(i)),
-    PathAccess,
+    LvalueBase,
+    <e: LvalueBase> <p: Path> => Box::new(Expression::PathAccess(e, p)),
     #[precedence(level="1")] #[assoc(side="left")]
-    "(" <e: Expr> ")" => e,
     "(" <csv: ExprCSV> ")" => Box::new(Expression::CSV(csv)),
     "*" <e: Expr> => Box::new(Expression::Deref(e)),
-    #[precedence(level="2")] #[assoc(side="left")]
-    "let" <m: "mut"?> <i: Identifier> "=" <r: (<ReferenceDeclaration>)?> <e: Expr> => 
+    <r: ReferenceAnnotation> <e: Expr> => Box::new(Expression::Ref(r, e)),
+    #[precedence(level="2")] #[assoc(side="right")]
+    "let" <m: "mut"?> <i: Identifier> ":" <typ: TypeAnnotation> "=" <e1: Expr> ";" <e2: Expr> => 
         Box::new(Expression::Let {
             name: i, 
-            ref_decl: r, 
             is_mut: match m { None => false, Some(_) => true }, 
-            e: e
+            type_annotation: typ,
+            e1: e1,
+            e2: e2
         }),
     #[precedence(level="3")] #[assoc(side="left")]
     <e1: Expr> ";" <e2: Expr> => Box::new(Expression::Sequence(e1, e2)),
     #[precedence(level="4")] #[assoc(side="left")]
-    "letrgn" "<" <regions: RegionCSV> ">" "{" <e: Expr> "}" => Box::new(Expression::Letrgn(regions, e))
+    // FIXME: need the ability to have only one region in here
+    "letrgn" "<" <regions: RegionCSV> ">" "{" <e: Expr> "}" => Box::new(Expression::Letrgn(regions, e)),
+};
+
+LvalueBase: Box<Expression> = {
+    <i: Identifier> => Box::new(Expression::Variable(i)),
+    "(" <e: Expr> ")" => e
+};
+
+TypeAnnotation: TypeAnnotation = {
+    <b: BaseTypeAnnotation> => TypeAnnotation::Base(b),
+    <r: ReferenceAnnotation> <t: TypeAnnotation> => TypeAnnotation::Reference(r, Box::new(t)),
+    "(" <types: Comma<TypeAnnotation>> ")" => TypeAnnotation::Tuple(types.into_iter().map(|t| Box::new(t)).collect())
 };
 
 ExprCSV = Comma<Expr>;
@@ -38,20 +51,18 @@ Comma<T>: Vec<T> = {
     }
 };
 
-PathAccess: Box<Expression> = {
-    <e: PathAccess> "." <n: Number> => match *e {
-        Expression::PathAccess(exp, vect) => {
-            let mut new_vec = vect.clone();
-            new_vec.push(n);
-            let new_path = Expression::PathAccess(exp.clone(), new_vec);
-            Box::new(new_path)
-        }
-        _ => { e }
+Path: Vec<u32> = {
+    "." <n: Number>  => {
+        vec![n]
+    },
+    <mut p: Path> "." <n: Number> => {
+        p.push(n);
+        p
     }
 };
 
-ReferenceDeclaration: ReferenceDeclaration = {
-    "&" "'" <region: Identifier> <o: OwnershipQualifier> => ReferenceDeclaration(region, o)
+ReferenceAnnotation: ReferenceAnnotation = {
+    "&" "'" <region: Identifier> <o: OwnershipQualifier> => ReferenceAnnotation(region, o)
 };
 
 OwnershipQualifier: OwnershipQualifier = { 
@@ -59,11 +70,11 @@ OwnershipQualifier: OwnershipQualifier = {
     "uniq" => OwnershipQualifier::Uniq
 };
 
-// BaseTypeName: Type = { 
-//     "bool" => Type::Base(BaseType::Bool),
-//     "u32" => Type::Base(BaseType::U32), 
-//     "unit" => Type::Base(BaseType::Unit)
-// };
+BaseTypeAnnotation: BaseTypeAnnotation = { 
+    "bool" => BaseTypeAnnotation::Bool,
+    "u32" => BaseTypeAnnotation::U32,
+    "unit" => BaseTypeAnnotation::Unit
+};
 
 ConstantValue: Constant = { 
     "()" => Constant::Unit, 

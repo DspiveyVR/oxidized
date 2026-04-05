@@ -1,21 +1,21 @@
 use std::fmt::Display;
 // use color_print;
 
-// #[derive(Debug, Clone)]
-// pub enum Type {
-//     Base(BaseType),
-//     Aggregate(AggregateType),
-// }
+//TODO: convert these tuple structs into named structs you idiot
 
-// #[derive(Debug, Clone)]
-// pub struct AggregateType {}
+#[derive(Debug, Clone)]
+pub enum BaseTypeAnnotation {
+    Bool,
+    U32,
+    Unit,
+}
 
-// #[derive(Debug, Clone)]
-// pub enum BaseType {
-//     Bool,
-//     U32,
-//     Unit,
-// }
+#[derive(Debug, Clone)]
+pub enum TypeAnnotation {
+    Base(BaseTypeAnnotation),
+    Reference(ReferenceAnnotation, Box<TypeAnnotation>),
+    Tuple(Vec<Box<TypeAnnotation>>),
+}
 
 #[derive(Debug, Clone)]
 pub enum Expression {
@@ -24,40 +24,17 @@ pub enum Expression {
     Let {
         name: String,
         is_mut: bool,
-        ref_decl: Option<ReferenceDeclaration>,
-        e: Box<Expression>,
+        type_annotation: TypeAnnotation,
+        e1: Box<Expression>,
+        e2: Box<Expression>,
     },
+    Ref(ReferenceAnnotation, Box<Expression>),
     Deref(Box<Expression>),
     PathAccess(Box<Expression>, Vec<u32>),
     Letrgn(Vec<String>, Box<Expression>),
     Sequence(Box<Expression>, Box<Expression>),
     CSV(Vec<Box<Expression>>),
     // ConstructorCall(String, Box<Expression>), // doesn't matter rn cause its just named tuples
-}
-
-pub enum PlaceExpression {
-    Deref(Box<PlaceExpression>),
-    PathAccess(Box<PlaceExpression>, Vec<u32>),
-    Variable(String),
-}
-
-impl TryFrom<Expression> for PlaceExpression {
-    type Error = String;
-
-    fn try_from(value: Expression) -> Result<Self, Self::Error> {
-        match value {
-            Expression::Deref(e) => {
-                let place_expression = (*e).try_into()?;
-                Ok(Self::Deref(Box::new(place_expression)))
-            }
-            Expression::PathAccess(e, p) => {
-                let place_expression = (*e).try_into()?;
-                Ok(Self::PathAccess(Box::new(place_expression), p))
-            }
-            Expression::Variable(v) => Ok(Self::Variable(v)),
-            _ => Err("Not a valid place expression".to_string()),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -69,12 +46,22 @@ pub enum Constant {
 }
 
 #[derive(Debug, Clone)]
-pub struct ReferenceDeclaration(pub String, pub OwnershipQualifier);
+pub struct ReferenceAnnotation(pub String, pub OwnershipQualifier);
 
-#[derive(Debug, Clone)]
+impl Eq for OwnershipQualifier {}
+#[derive(Debug, Copy, Clone, Hash, PartialEq)]
 pub enum OwnershipQualifier {
     Shrd,
     Uniq,
+}
+impl ToString for OwnershipQualifier {
+    fn to_string(&self) -> String {
+        if *self == OwnershipQualifier::Uniq {
+            "unique".to_string()
+        } else {
+            "shared".to_string()
+        }
+    }
 }
 
 impl Display for Expression {
@@ -84,16 +71,18 @@ impl Display for Expression {
             Expression::Let {
                 name,
                 is_mut,
-                ref_decl,
-                e,
+                type_annotation,
+                e1,
+                e2,
             } => {
                 return write!(
                     f,
-                    "let {} {} = {:?} {}",
+                    "\n    let {} {}: {:?} = {};\n    {}",
                     if *is_mut { "mut" } else { "" },
                     name,
-                    ref_decl,
-                    e
+                    type_annotation,
+                    e1,
+                    e2
                 );
             }
             Expression::Letrgn(regions, e) => {

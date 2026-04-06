@@ -1,6 +1,5 @@
 use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
 use std::{fmt::Debug, path::Path, vec};
-// use color_print;
 use thiserror::Error;
 
 // Types
@@ -102,7 +101,7 @@ pub(crate) enum OxidizedError {
     RegionNameConflict(String),
     #[error("Type {0:?} is dead")]
     UseOfMovedValue(Type),
-    #[error("Region {0:?} must outlive region {1:?}")]
+    #[error("Region {0} must outlive region {1}")]
     ConcreteOutlivesError(ConcreteRegion, ConcreteRegion),
     #[error("Cannot borrow with nonempty region '{0} containing loans: {1:?}")]
     NonemptyRegion(String, VecSet<Loan>),

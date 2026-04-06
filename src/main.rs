@@ -1,5 +1,6 @@
 mod ast;
 mod static_analysis;
+mod debugging;
 
 use lalrpop_util::lalrpop_mod;
 
@@ -13,8 +14,7 @@ fn main() {
             "
         letrgn<'x, 'y> {
             let mut x: u32 = 5;
-            let y: &'x uniq u32 = &'x uniq x; 
-            let z: &'y uniq &'x uniq u32 = &'y uniq y; ()
+            let y: &'x uniq u32 = &'y uniq x; ()
         }
     ",
         )

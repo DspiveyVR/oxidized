@@ -1,4 +1,10 @@
 /*
+
+I think binding should only store the variable name and then places will be stored within regions.
+places metafunction to create lookup function for type env that will walk through the types based on a place expression?
+
+
+
 tuples are the only thing that need to add any types to the cont typing (for now).  return types of individual expressions are not
 added to the cont typing unless they are returning into an element of a tuple.  so in a seq statement e1; e2, the return type of
 e1 only matters to e2 insofar as it affects the output typing gamma1, but the e1 return type is not added to the cont typing.
@@ -57,7 +63,7 @@ impl Expression {
                     },
                 )),
             }),
-            _ => panic!("Unhandled error"),
+            _ => panic!("Unexpected error"),
         }
     }
 
@@ -85,7 +91,7 @@ impl Expression {
                 ref_annotation.1,
             )?;
 
-            let place_expression_type = stack_typing.get_binding_type(place_expression.into())?;
+            let place_expression_type = stack_typing.type_lookup(place_expression)?;
 
             let ref_type = Type {
                 binding: None,
@@ -106,7 +112,7 @@ impl Expression {
                 ref_type,
             ))
         } else {
-            panic!("Unhandled error");
+            panic!("Unexpected error");
         }
     }
 
@@ -120,7 +126,7 @@ impl Expression {
             let local_types = ConcreteTyping::new_with_regions(region_names);
             inner_exp.typecheck(stack_typing.union(local_types), continuation_typing)
         } else {
-            panic!("Unhandled error");
+            panic!("Unexpected error");
         }
     }
 
@@ -137,7 +143,7 @@ impl Expression {
                 continuation_typing.clone(),
             )
         } else {
-            panic!("Unhandled error");
+            panic!("Unexpected error");
         }
     }
 
@@ -167,7 +173,7 @@ impl Expression {
             // TODO: check for all free regions in ta. r rnrb
             let mut bound_type = annotated_type;
             bound_type.binding = Some(Binding {
-                place_expression: PlaceExpression::Variable(name.to_string()),
+                variable: name.to_string(),
                 is_mut: *is_mut,
             });
             let mut gamma1_modified = gamma1.add_type(bound_type.clone());
@@ -187,7 +193,7 @@ impl Expression {
 
             Ok((gamma2.set_type(bound_type, dead_bound_type), return_type2))
         } else {
-            panic!("Unhandled error");
+            panic!("Unexpected error");
         }
     }
 }
@@ -206,7 +212,7 @@ impl ConcreteTyping {
             self.o_safe_place(continuation_typing, place, ownership_qualifier)
         } else {
             match place_expression {
-                _ => panic!("Unhandled error"),
+                _ => panic!("Unexpected error"),
             }
         }
     }
@@ -263,7 +269,7 @@ impl ConcreteTyping {
                     mode,
                 ),
                 (TypeVariant::Base(_), TypeVariant::Base(_)) => Ok(self.clone()),
-                _ => panic!("Unhandled error"),
+                _ => panic!("Unexpected error"),
             }
         }
     }
@@ -277,7 +283,7 @@ impl ConcreteTyping {
     ) -> Result<Self, OxidizedError> {
         match mode {
             RegionRewriteMode::Plus => self.ol_combine_concrete(region1, region2),
-            _ => panic!("Unhandled error"),
+            _ => panic!("Unexpected error"),
         }
     }
 

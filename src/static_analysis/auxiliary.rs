@@ -1,17 +1,18 @@
 use super::data_structures::*;
 
 impl ConcreteTyping {
+    // FIXME: make this look less stupid
     pub(crate) fn rnrb(&self, region: ConcreteRegion) -> bool {
         let exploded = self.explode();
-        exploded.0.iter().all(|t| {
-            if let TypeVariant::Reference(reference) = t.variant.clone() {
+        exploded.0.iter().all(|pair| {
+            if let TypeVariant::Reference(reference) = pair.1.variant.clone() {
                 if reference.region_name == region.name {
                     !self.regions.0.iter().any(|r| {
                         let cr = r.get_concrete();
                         if cr.name != region.name {
                             cr.loans.0.iter().any(|loan| {
                                 if let PlaceExpression::Deref(pe) = loan.place_expression.clone() {
-                                    *pe == t.binding.as_ref().unwrap().place_expression
+                                    *pe == pair.0.clone().into()
                                 } else {
                                     false
                                 }

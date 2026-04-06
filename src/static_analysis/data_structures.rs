@@ -1,5 +1,5 @@
 use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
-use std::{fmt::Debug, vec};
+use std::{fmt::Debug, path::Path, vec};
 // use color_print;
 use thiserror::Error;
 
@@ -29,7 +29,7 @@ pub(crate) enum PlaceExpression {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Binding {
-    pub(crate) place_expression: PlaceExpression,
+    pub(crate) variable: String,
     pub(crate) is_mut: bool,
 }
 
@@ -120,10 +120,14 @@ pub(crate) enum OxidizedError {
     },
     #[error("{0} is not a valid place expression")]
     InvalidPlaceExpression(Expression),
-    #[error("{0:?} was not found in the stack typing")]
-    UseOfUndeclaredBinding(Binding),
+    #[error("{0} was not found in the stack typing")]
+    UseOfUndeclared(String),
     #[error("Expected {expected:?}, found {found:?} ")]
     MismatchedTypes { expected: Type, found: Type },
+    #[error("{0:?} cannot be dereferenced")]
+    CanontDereference(Type),
+    #[error("{0:?} is not a valid path in {1:?}")]
+    InvalidPathAccess(Vec<u32>, Type),
 }
 
 // Traits
@@ -150,17 +154,20 @@ impl TypeEnv for ConcreteTyping {
 }
 
 impl ConcreteTyping {
-    pub(crate) fn get_binding_type(&self, binding: Binding) -> Result<Type, OxidizedError> {
-        if let Some(found_type) = self.types.0.iter().find(|t| {
-            if let Some(matched_binding) = t.binding.clone() {
-                matched_binding == binding
-            } else {
-                false
-            }
-        }) {
-            Ok(found_type.clone())
+    pub(crate) fn type_lookup(
+        &self,
+        place_expression: PlaceExpression,
+    ) -> Result<Type, OxidizedError> {
+        let var = place_expression.get_inner_variable();
+        let found_type = self
+            .types
+            .0
+            .iter()
+            .find(|t| t.binding.clone().unwrap().variable == var);
+        if let Some(found_type) = found_type {
+            found_type.walk(place_expression)
         } else {
-            Err(OxidizedError::UseOfUndeclaredBinding(binding))
+            return Err(OxidizedError::UseOfUndeclared(var));
         }
     }
 
@@ -230,13 +237,105 @@ impl ConcreteTyping {
     }
 
     // is this relevant if i'm just looking for the regions?  maybe i don't need to go this deeply nested since they're all present in the stack typing.
-    pub(crate) fn explode(&self) -> VecSet<Type> {
-        let mut types = VecSet::new();
-        let self_types = self.types.0.clone();
-        for t in self_types {
-            types = types.union(t.explode());
+    // pub(crate) fn explode(&self) -> VecSet<Type> {
+    //     let mut types = VecSet::new();
+    //     let self_types = self.types.0.clone();
+    //     for t in self_types {
+    //         types = types.union(t.explode());
+    //     }
+    //     types
+    // }
+
+    // these two funcitons are highly questionable .  so is the fact that i consistently misspell the word function
+    pub(crate) fn explode(&self) -> VecSet<(Place, Type)> {
+        let binding_pairs = VecSet(
+            self.types
+                .0
+                .iter()
+                .map(|t| {
+                    (
+                        Place {
+                            variable: t.binding.clone().unwrap().variable,
+                            path: None,
+                        },
+                        t.clone(),
+                    )
+                })
+                .collect(),
+        );
+
+        let all_concrete_regions: Vec<ConcreteRegion> = self
+            .regions
+            .0
+            .iter()
+            .map(|r| r.get_concrete().clone())
+            .collect();
+        let all_place_expressions: Vec<PlaceExpression> = all_concrete_regions
+            .iter()
+            .map(|r| r.loans.clone())
+            .reduce(|acc_loans, current_loans| acc_loans.union(current_loans))
+            .unwrap()
+            .0
+            .iter()
+            .map(|l| l.place_expression.clone())
+            .collect();
+        let all_places: Vec<Place> = all_place_expressions
+            .iter()
+            .filter_map(|pe| {
+                if let Ok(place) = TryInto::<Place>::try_into((*pe).clone()) {
+                    Some(place)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let place_pairs = VecSet(
+            all_places
+                .iter()
+                .map(|p| {
+                    (
+                        p.clone(),
+                        self.type_lookup((*p).clone().into())
+                            .expect("Unexpected error"),
+                    )
+                })
+                .collect(),
+        );
+
+        let all_pairs = binding_pairs.union(place_pairs);
+
+        let mut result = VecSet::new();
+        for pair in all_pairs.0 {
+            result = result.union(Self::explode_pair(pair.0, pair.1))
         }
-        types
+
+        result
+    }
+
+    fn explode_pair(place: Place, associated_type: Type) -> VecSet<(Place, Type)> {
+        match associated_type.variant {
+            TypeVariant::Base(_) | TypeVariant::Reference(_) => {
+                VecSet(vec![(place.clone(), associated_type)])
+            }
+            TypeVariant::Tuple(types) => {
+                let mut exploded = VecSet::new();
+                for (i, type_info) in types.iter().enumerate() {
+                    let new_place = Place {
+                        variable: (&place).clone().variable,
+                        path: Some(
+                            [
+                                &(&place).clone().path.unwrap_or(Vec::new())[..],
+                                &vec![i as u32][..],
+                            ]
+                            .concat(),
+                        ),
+                    };
+                    exploded = exploded.union(Self::explode_pair(new_place, (**type_info).clone()))
+                }
+
+                exploded
+            }
+        }
     }
 }
 
@@ -365,6 +464,50 @@ impl From<TypeAnnotation> for Type {
     }
 }
 
+impl Type {
+    // dun dunununun RE! dun dunununun SPECT! dun dunununun WALK! dun dun dun dununununununununun
+    fn walk(&self, place_expression: PlaceExpression) -> Result<Self, OxidizedError> {
+        match place_expression {
+            PlaceExpression::Deref(inner_pe) => {
+                if let TypeVariant::Reference(ref_type) = self.variant.clone() {
+                    ref_type.target_type.walk(*inner_pe)
+                } else {
+                    Err(OxidizedError::CanontDereference(self.clone()))
+                }
+            }
+            PlaceExpression::PathAccess(inner_pe, path) => {
+                let accessed_type = self.walk(*inner_pe)?;
+                accessed_type.walk_tuple(&path[..])
+            }
+            PlaceExpression::Variable(_) => Ok(self.clone()),
+        }
+    }
+
+    fn walk_tuple(&self, path: &[u32]) -> Result<Self, OxidizedError> {
+        if let TypeVariant::Tuple(types) = self.variant.clone() {
+            let accessed_type = types.get(path[0] as usize);
+            if let Some(accessed_type) = accessed_type {
+                let new_path = &path[1..];
+                if new_path.len() > 0 {
+                    accessed_type.walk_tuple(new_path)
+                } else {
+                    Ok((**accessed_type).clone())
+                }
+            } else {
+                Err(OxidizedError::InvalidPathAccess(
+                    path.to_vec(),
+                    self.clone(),
+                ))
+            }
+        } else {
+            Err(OxidizedError::InvalidPathAccess(
+                path.to_vec(),
+                self.clone(),
+            ))
+        }
+    }
+}
+
 impl TryFrom<Expression> for PlaceExpression {
     type Error = OxidizedError;
 
@@ -418,11 +561,14 @@ impl From<Place> for PlaceExpression {
     }
 }
 
-impl From<PlaceExpression> for Binding {
-    fn from(place_expression: PlaceExpression) -> Self {
-        Binding {
-            place_expression,
-            is_mut: false, /* False is just assumed cause I think its irrelevant with how I'm using this method */
+impl PlaceExpression {
+    fn get_inner_variable(&self) -> String {
+        match self {
+            PlaceExpression::Deref(place_expression) => place_expression.get_inner_variable(),
+            PlaceExpression::PathAccess(place_expression, _) => {
+                place_expression.get_inner_variable()
+            }
+            PlaceExpression::Variable(var) => var.to_string(),
         }
     }
 }
@@ -458,7 +604,7 @@ impl ConcreteRegion {
 
 impl PartialEq for Binding {
     fn eq(&self, other: &Self) -> bool {
-        self.place_expression == other.place_expression
+        self.variable == other.variable
     }
 }
 impl Eq for Binding {}

@@ -12,7 +12,6 @@ pub(crate) struct ConcreteTyping {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Type {
-    // TODO: needs a 'mutable' bool
     pub(crate) binding: Option<Binding>,
     pub(crate) variant: TypeVariant,
     pub(crate) is_sized: Ternary,

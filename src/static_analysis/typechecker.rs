@@ -1,10 +1,5 @@
 /*
 
-I think binding should only store the variable name and then places will be stored within regions.
-places metafunction to create lookup function for type env that will walk through the types based on a place expression?
-
-
-
 tuples are the only thing that need to add any types to the cont typing (for now).  return types of individual expressions are not
 added to the cont typing unless they are returning into an element of a tuple.  so in a seq statement e1; e2, the return type of
 e1 only matters to e2 insofar as it affects the output typing gamma1, but the e1 return type is not added to the cont typing.
@@ -22,6 +17,7 @@ in the cont typing.  probably can forget about it for now.
 
 use super::auxiliary::*;
 use super::data_structures::*;
+use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
 
@@ -36,34 +32,36 @@ impl Expression {
             Expression::Sequence(..) => err_if_dead(self.t_seq(stack_typing, continuation_typing)),
             Expression::Let { .. } => err_if_dead(self.t_let(stack_typing, continuation_typing)),
             Expression::Ref(..) => err_if_dead(self.t_borrow(stack_typing, continuation_typing)),
-            // Expression::Variable(_) => err_if_dead((Ok((stack_typing.clone(), stack_typing.get_binding_type()))))
-            Expression::Constant(c) => err_if_dead(match c {
-                // FIXME: For now constants will be treated as noncopyable. once copy logic is implemented this branch should not call err_if_dead.
-                // TODO: clean this branch up and make t_... function
-                crate::ast::Constant::Unit => Ok((
-                    stack_typing.clone(),
-                    Type {
-                        binding: None,
-                        variant: TypeVariant::Base(BaseType::Unit),
-                        is_sized: Ternary::No,
-                        is_dead: Ternary::No,
-                        copyable: false,
-                    },
-                )),
-                crate::ast::Constant::True => todo!(),
-                crate::ast::Constant::False => todo!(),
-                crate::ast::Constant::Number(_) => Ok((
-                    stack_typing.clone(),
-                    Type {
-                        binding: None,
-                        variant: TypeVariant::Base(BaseType::U32),
-                        is_sized: Ternary::Yes,
-                        is_dead: Ternary::No,
-                        copyable: false,
-                    },
-                )),
-            }),
+            Expression::Variable(var) => err_if_dead(Ok((
+                stack_typing.clone(),
+                stack_typing.type_lookup(PlaceExpression::Variable(var.to_string()))?,
+            ))),
+            // FIXME: For now constants will be treated as noncopyable. once copy logic is implemented this branch should not call err_if_dead.
+            Expression::Constant(c) => {
+                err_if_dead(Ok((stack_typing.clone(), Self::t_constant(c)?)))
+            }
             _ => panic!("Unexpected error"),
+        }
+    }
+
+    fn t_constant(constant: &Constant) -> Result<Type, OxidizedError> {
+        match constant {
+            crate::ast::Constant::Unit => Ok(Type {
+                binding: None,
+                variant: TypeVariant::Base(BaseType::Unit),
+                is_sized: Ternary::No,
+                is_dead: Ternary::No,
+                copyable: false,
+            }),
+            crate::ast::Constant::True => todo!(),
+            crate::ast::Constant::False => todo!(),
+            crate::ast::Constant::Number(_) => Ok(Type {
+                binding: None,
+                variant: TypeVariant::Base(BaseType::U32),
+                is_sized: Ternary::Yes,
+                is_dead: Ternary::No,
+                copyable: false,
+            }),
         }
     }
 

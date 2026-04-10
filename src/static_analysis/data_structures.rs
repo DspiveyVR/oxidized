@@ -1,15 +1,17 @@
 use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
 use std::{fmt::Debug, path::Path, vec};
+use serde::Serialize;
+// use color_print;
 use thiserror::Error;
 
 // Types
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) struct ConcreteTyping {
     pub(crate) regions: VecSet<Region>, // FIXME: this will likely have to be double vecs to represent scopes since strictly speaking regions in the same letrgn block will have different scopes in my code.
     pub(crate) types: VecSet<Type>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) struct Type {
     pub(crate) binding: Option<Binding>,
     pub(crate) variant: TypeVariant,
@@ -18,81 +20,81 @@ pub(crate) struct Type {
     pub(crate) copyable: bool,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
 pub(crate) enum PlaceExpression {
     Deref(Box<PlaceExpression>),
     PathAccess(Box<PlaceExpression>, Vec<u32>),
     Variable(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) struct Binding {
     pub(crate) variable: String,
     pub(crate) is_mut: bool,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct Place {
     pub(crate) variable: String,
     pub(crate) path: Option<Vec<u32>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) enum TypeVariant {
     Base(BaseType),
     Reference(ReferenceType),
     Tuple(Vec<Box<Type>>),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
 pub(crate) enum BaseType {
     Bool,
     U32,
     Unit,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) struct ReferenceType {
     pub(crate) region_name: String,
     pub(crate) ownership_qualifier: OwnershipQualifier,
     pub(crate) target_type: Box<Type>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
 pub(crate) enum Ternary {
     Yes,
     No,
     Maybe,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) struct Region(pub(crate) RegionLevel);
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) enum RegionLevel {
     ConcreteRegion(ConcreteRegion),
     // AbstractRegion
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) struct ConcreteRegion {
     pub(crate) name: String,
     pub(crate) loans: VecSet<Loan>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct Loan {
     pub(crate) ownership_qualifier: OwnershipQualifier,
     pub(crate) place_expression: PlaceExpression,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) enum RegionRewriteMode {
     Plus,
     Equals,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub(crate) struct VecSet<T>(pub(crate) Vec<T>);
 
 #[derive(Debug, Clone, Error)]
@@ -123,7 +125,7 @@ pub(crate) enum OxidizedError {
     #[error("Expected {expected:?}, found {found:?} ")]
     MismatchedTypes { expected: Type, found: Type },
     #[error("{0:?} cannot be dereferenced")]
-    CanontDereference(Type),
+    CannotDereference(Type),
     #[error("{0:?} is not a valid path in {1:?}")]
     InvalidPathAccess(Vec<u32>, Type),
 }
@@ -467,10 +469,11 @@ impl Type {
     fn walk(&self, place_expression: PlaceExpression) -> Result<Self, OxidizedError> {
         match place_expression {
             PlaceExpression::Deref(inner_pe) => {
-                if let TypeVariant::Reference(ref_type) = self.variant.clone() {
-                    ref_type.target_type.walk(*inner_pe)
+                let inner_type = self.walk((*inner_pe).clone())?;
+                if let TypeVariant::Reference(ref_type) = inner_type.variant.clone() {
+                    Ok(*ref_type.target_type)
                 } else {
-                    Err(OxidizedError::CanontDereference(self.clone()))
+                    Err(OxidizedError::CannotDereference(inner_type.clone()))
                 }
             }
             PlaceExpression::PathAccess(inner_pe, path) => {

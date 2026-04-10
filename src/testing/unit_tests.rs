@@ -1,0 +1,124 @@
+use crate::{ast::OwnershipQualifier, oxidized, static_analysis::data_structures::*};
+use rstest::*;
+
+#[fixture]
+fn new_concrete() -> ConcreteTyping {
+    ConcreteTyping::new_with_regions(&vec!["a".to_string()])
+}
+
+fn get_u32() -> Box<Type> {
+    Box::new(Type {
+        binding: None,
+        variant: TypeVariant::Base(BaseType::U32),
+        is_sized: Ternary::Yes,
+        is_dead: Ternary::No,
+        copyable: false,
+    })
+}
+
+fn get_ref_to(
+    typ: Box<Type>,
+    ownership_qualifier: OwnershipQualifier,
+    region: String,
+) -> Box<Type> {
+    Box::new(Type {
+        binding: None,
+        variant: TypeVariant::Reference(ReferenceType {
+            region_name: region,
+            ownership_qualifier: ownership_qualifier,
+            target_type: typ,
+        }),
+        is_sized: Ternary::Yes,
+        is_dead: Ternary::No,
+        copyable: false,
+    })
+}
+
+#[fixture]
+fn tup1() -> Type {
+    Type {
+        binding: Some(Binding {
+            variable: "var".to_string(),
+            is_mut: false,
+        }),
+        variant: TypeVariant::Tuple(vec![
+            get_u32(),
+            Box::new(Type {
+                binding: None,
+                variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
+                is_sized: Ternary::Yes,
+                is_dead: Ternary::No,
+                copyable: false,
+            }),
+        ]),
+        is_sized: Ternary::Yes,
+        is_dead: Ternary::No,
+        copyable: false,
+    }
+}
+
+#[fixture]
+fn tup1_pe() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("var.1.0").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn tup2() -> Type {
+    Type {
+        binding: Some(Binding {
+            variable: "var".to_string(),
+            is_mut: false,
+        }),
+        variant: TypeVariant::Tuple(vec![
+            get_u32(),
+            get_ref_to(
+                Box::new(Type {
+                    binding: None,
+                    variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
+                    is_sized: Ternary::Yes,
+                    is_dead: Ternary::No,
+                    copyable: false,
+                }),
+                OwnershipQualifier::Uniq,
+                "a".to_string(),
+            ),
+        ]),
+        is_sized: Ternary::Yes,
+        is_dead: Ternary::No,
+        copyable: false,
+    }
+}
+
+#[fixture]
+fn tup2_pe() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("(*var.1).0").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn var_pe() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("var.1").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[rstest]
+#[case(tup1(), tup1_pe())]
+#[case(tup2(), tup2_pe())]
+fn u32_lookup(#[case] typ: Type, #[case] pe: PlaceExpression, new_concrete: ConcreteTyping) {
+    let mut env = new_concrete.clone();
+    env = env.add_type(typ);
+    assert_eq!(env.type_lookup(pe).unwrap(), *get_u32());
+}
+
+#[rstest]
+#[case(tup1(), var_pe())]
+#[case(tup2(), var_pe())]
+fn self_lookup(#[case] typ: Type, #[case] var: PlaceExpression, new_concrete: ConcreteTyping) {
+    let mut env = new_concrete.clone();
+    env = env.add_type(typ.clone());
+    assert_eq!(env.type_lookup(var).unwrap(), typ);
+}

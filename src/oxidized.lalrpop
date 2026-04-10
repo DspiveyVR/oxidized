@@ -9,6 +9,7 @@ pub Expr: Box<Expression> = {
     <e: LvalueBase> <p: Path> => Box::new(Expression::PathAccess(e, p)),
     #[precedence(level="1")] #[assoc(side="left")]
     "(" <csv: ExprCSV> ")" => Box::new(Expression::CSV(csv)),
+    #[precedence(level="1")] #[assoc(side="right")]
     "*" <e: Expr> => Box::new(Expression::Deref(e)),
     <r: ReferenceAnnotation> <e: Expr> => Box::new(Expression::Ref(r, e)),
     #[precedence(level="2")] #[assoc(side="right")]

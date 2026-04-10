@@ -1,5 +1,6 @@
 mod ast;
 mod static_analysis;
+mod testing;
 
 use lalrpop_util::lalrpop_mod;
 
@@ -34,6 +35,3 @@ fn main() {
         }
     };
 }
-
-#[test]
-fn oxidized() {}

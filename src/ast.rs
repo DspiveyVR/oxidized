@@ -1,4 +1,6 @@
 use std::fmt::Display;
+
+use serde::Serialize;
 // use color_print;
 
 //TODO: convert these tuple structs into named structs you idiot
@@ -49,7 +51,7 @@ pub enum Constant {
 pub struct ReferenceAnnotation(pub String, pub OwnershipQualifier);
 
 impl Eq for OwnershipQualifier {}
-#[derive(Debug, Copy, Clone, Hash, PartialEq)]
+#[derive(Serialize, Debug, Copy, Clone, Hash, PartialEq)]
 pub enum OwnershipQualifier {
     Shrd,
     Uniq,

@@ -101,7 +101,7 @@ fn tup2_pe() -> PlaceExpression {
 
 #[fixture]
 fn var_pe() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("var.1").unwrap())
+    (*oxidized::ExprParser::new().parse("var").unwrap())
         .try_into()
         .unwrap()
 }

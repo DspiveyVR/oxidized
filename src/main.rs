@@ -1,6 +1,6 @@
 mod ast;
-mod static_analysis;
 mod debugging;
+mod static_analysis;
 mod testing;
 
 use lalrpop_util::lalrpop_mod;

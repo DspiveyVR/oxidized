@@ -1,0 +1,13 @@
+---
+source: src/testing/display_impl_tests.rs
+expression: "format!(\"{}\", env)"
+---
+ConcreteTyping { 
+	r: [
+		'a -> { shared (var).1.0, unique (*((var).1)).0 }
+	]
+ 	𝜏: [
+		 var := (u32, (u32, u32))
+		 var := (u32, &'a unique (u32, u32))
+	]
+ }

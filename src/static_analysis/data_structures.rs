@@ -1,6 +1,6 @@
 use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
-use std::{fmt::Debug, path::Path, vec};
 use serde::Serialize;
+use std::{fmt::Debug, path::Path, vec};
 // use color_print;
 use thiserror::Error;
 
@@ -8,6 +8,7 @@ use thiserror::Error;
 #[derive(Serialize, Debug, Clone)]
 pub(crate) struct ConcreteTyping {
     pub(crate) regions: VecSet<Region>, // FIXME: this will likely have to be double vecs to represent scopes since strictly speaking regions in the same letrgn block will have different scopes in my code.
+    // also it should store concrete regions not just regions so i won't need the get_concrete thing
     pub(crate) types: VecSet<Type>,
 }
 
@@ -101,16 +102,16 @@ pub(crate) struct VecSet<T>(pub(crate) Vec<T>);
 pub(crate) enum OxidizedError {
     #[error("A region with name {0} already exists")]
     RegionNameConflict(String),
-    #[error("Type {0:?} is dead")]
+    #[error("Type {0} is dead")]
     UseOfMovedValue(Type),
     #[error("Region {0} must outlive region {1}")]
     ConcreteOutlivesError(ConcreteRegion, ConcreteRegion),
-    #[error("Cannot borrow with nonempty region '{0} containing loans: {1:?}")]
+    #[error("Cannot borrow with nonempty region '{0} containing loans: {1}")]
     NonemptyRegion(String, VecSet<Loan>),
     #[error("Cannot borrow with nonexistent region '{0}")]
     NonexistentRegion(String),
     #[error(
-        "Cannot borrow {place:?} {ownership_qualifier}ly while a {ownership_qualifier2} reference to {place_expression2:?} exists"
+        "Cannot borrow {place} {ownership_qualifier}ly while a {ownership_qualifier2} reference to {place_expression2} exists"
     )]
     UnsafePlace {
         place: Place,
@@ -122,11 +123,11 @@ pub(crate) enum OxidizedError {
     InvalidPlaceExpression(Expression),
     #[error("{0} was not found in the stack typing")]
     UseOfUndeclared(String),
-    #[error("Expected {expected:?}, found {found:?} ")]
+    #[error("Expected {expected} found {found} ")]
     MismatchedTypes { expected: Type, found: Type },
     #[error("{0:?} cannot be dereferenced")]
     CannotDereference(Type),
-    #[error("{0:?} is not a valid path in {1:?}")]
+    #[error("{0:?} is not a valid path in {1}")]
     InvalidPathAccess(Vec<u32>, Type),
 }
 
@@ -168,6 +169,13 @@ impl ConcreteTyping {
             found_type.walk(place_expression)
         } else {
             return Err(OxidizedError::UseOfUndeclared(var));
+        }
+    }
+
+    pub(crate) fn add_region(&self, new_region: Region) -> Self {
+        ConcreteTyping {
+            regions: VecSet([&self.regions.0[..], &vec![new_region][..]].concat()),
+            types: self.types.clone(),
         }
     }
 

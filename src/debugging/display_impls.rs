@@ -1,13 +1,67 @@
 // I think I'll eventually want to make this a TUI
 
-use color_print::cwrite;
 use std::fmt::Display;
 
 use crate::static_analysis::data_structures::*;
 
+impl Display for ConcreteTyping {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let regions_str = self.regions.0.iter().fold("".to_string(), |a, e| {
+            format!("{}\n\t\t{}", a, e.get_concrete())
+        });
+        let types_str = self
+            .types
+            .0
+            .iter()
+            .fold("".to_string(), |a, e| format!("{}\n\t\t{}", a, e));
+
+        write!(
+            f,
+            "ConcreteTyping {{ \n\tr: [{}\n\t]\n \t𝜏: [{}\n\t]\n }}",
+            regions_str, types_str
+        )
+    }
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let binding_str = if let Some(binding) = &self.binding {
+            format!(
+                "{} {} := ",
+                binding.is_mut.then(|| "mut").unwrap_or(""),
+                binding.variable
+            )
+        } else {
+            "".to_string()
+        };
+        let variant_str = match &self.variant {
+            TypeVariant::Base(base_type) => match base_type {
+                BaseType::Bool => "bool".to_string(),
+                BaseType::U32 => "u32".to_string(),
+                BaseType::Unit => "()".to_string(),
+            },
+            TypeVariant::Reference(reference_type) => format!(
+                "&'{} {} {}",
+                reference_type.region_name,
+                reference_type.ownership_qualifier.to_string(),
+                reference_type.target_type
+            ),
+            TypeVariant::Tuple(items) => format!(
+                "({})",
+                items
+                    .iter()
+                    .fold("".to_string(), |a, e| format!("{}, {}", a, e))[2..]
+                    .to_string()
+            ),
+        };
+
+        write!(f, "{}{}", binding_str, variant_str)
+    }
+}
+
 impl Display for ConcreteRegion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        cwrite!(f, "<yellow>'{} -> {}</>", self.name, self.loans)
+        write!(f, "'{} -> {}", self.name, self.loans)
     }
 }
 
@@ -45,6 +99,13 @@ impl Display for PlaceExpression {
             }
             PlaceExpression::Variable(var) => write!(f, "{}", var),
         }
+    }
+}
+
+impl Display for Place {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let place: Place = (*self).clone().into();
+        write!(f, "{}", place)
     }
 }
 

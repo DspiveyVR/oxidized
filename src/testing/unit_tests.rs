@@ -1,12 +1,13 @@
 use crate::{ast::OwnershipQualifier, oxidized, static_analysis::data_structures::*};
 use rstest::*;
+use similar_asserts::assert_eq;
 
 #[fixture]
-fn new_concrete() -> ConcreteTyping {
+pub(crate) fn new_concrete() -> ConcreteTyping {
     ConcreteTyping::new_with_regions(&vec!["a".to_string()])
 }
 
-fn get_u32() -> Box<Type> {
+pub(crate) fn get_u32() -> Box<Type> {
     Box::new(Type {
         binding: None,
         variant: TypeVariant::Base(BaseType::U32),
@@ -16,7 +17,7 @@ fn get_u32() -> Box<Type> {
     })
 }
 
-fn get_ref_to(
+pub(crate) fn get_ref_to(
     typ: Box<Type>,
     ownership_qualifier: OwnershipQualifier,
     region: String,
@@ -35,7 +36,7 @@ fn get_ref_to(
 }
 
 #[fixture]
-fn tup1() -> Type {
+pub(crate) fn tup1() -> Type {
     Type {
         binding: Some(Binding {
             variable: "var".to_string(),
@@ -65,7 +66,7 @@ fn tup1_pe() -> PlaceExpression {
 }
 
 #[fixture]
-fn tup2() -> Type {
+pub(crate) fn tup2() -> Type {
     Type {
         binding: Some(Binding {
             variable: "var".to_string(),
@@ -111,7 +112,7 @@ fn var_pe() -> PlaceExpression {
 fn u32_lookup(#[case] typ: Type, #[case] pe: PlaceExpression, new_concrete: ConcreteTyping) {
     let mut env = new_concrete.clone();
     env = env.add_type(typ);
-    assert_eq!(env.type_lookup(pe).unwrap(), *get_u32());
+    assert_eq!(format!("{}", env.type_lookup(pe).unwrap()), format!("{}", *get_u32()));
 }
 
 #[rstest]
@@ -120,5 +121,28 @@ fn u32_lookup(#[case] typ: Type, #[case] pe: PlaceExpression, new_concrete: Conc
 fn self_lookup(#[case] typ: Type, #[case] var: PlaceExpression, new_concrete: ConcreteTyping) {
     let mut env = new_concrete.clone();
     env = env.add_type(typ.clone());
-    assert_eq!(env.type_lookup(var).unwrap(), typ);
+    assert_eq!(format!("{}", env.type_lookup(var).unwrap()), format!("{}", typ));
+}
+
+#[fixture]
+pub(crate) fn concrete_env1() -> ConcreteTyping {
+    let mut env = ConcreteTyping::new();
+    let a = Region(RegionLevel::ConcreteRegion(ConcreteRegion {
+        name: "a".to_string(),
+        loans: VecSet(vec![
+            Loan {
+                ownership_qualifier: OwnershipQualifier::Shrd,
+                place_expression: tup1_pe(),
+            },
+            Loan {
+                ownership_qualifier: OwnershipQualifier::Uniq,
+                place_expression: tup2_pe(),
+            },
+        ]),
+    }));
+    env = env.add_region(a);
+    env = env.add_type(tup1());
+    env = env.add_type(tup2());
+
+    env
 }

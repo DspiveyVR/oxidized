@@ -1,0 +1,5 @@
+---
+source: src/testing/display_impl_tests.rs
+expression: "format!(\"{}\", typ)"
+---
+ var := (u32, (u32, u32))

@@ -1,4 +1,7 @@
-use crate::{ast::OwnershipQualifier, oxidized, static_analysis::data_structures::*};
+use crate::{
+    ast::OwnershipQualifier, debugging::display_impls::vec_display_elements, oxidized,
+    static_analysis::data_structures::*, testing::set_snapshot_suffix,
+};
 use rstest::*;
 use similar_asserts::assert_eq;
 
@@ -112,7 +115,10 @@ fn var_pe() -> PlaceExpression {
 fn u32_lookup(#[case] typ: Type, #[case] pe: PlaceExpression, new_concrete: ConcreteTyping) {
     let mut env = new_concrete.clone();
     env = env.add_type(typ);
-    assert_eq!(format!("{}", env.type_lookup(pe).unwrap()), format!("{}", *get_u32()));
+    assert_eq!(
+        format!("{}", env.type_lookup(pe).unwrap()),
+        format!("{}", *get_u32())
+    );
 }
 
 #[rstest]
@@ -121,7 +127,10 @@ fn u32_lookup(#[case] typ: Type, #[case] pe: PlaceExpression, new_concrete: Conc
 fn self_lookup(#[case] typ: Type, #[case] var: PlaceExpression, new_concrete: ConcreteTyping) {
     let mut env = new_concrete.clone();
     env = env.add_type(typ.clone());
-    assert_eq!(format!("{}", env.type_lookup(var).unwrap()), format!("{}", typ));
+    assert_eq!(
+        format!("{}", env.type_lookup(var).unwrap()),
+        format!("{}", typ)
+    );
 }
 
 #[fixture]
@@ -145,4 +154,32 @@ pub(crate) fn concrete_env1() -> ConcreteTyping {
     env = env.add_type(tup2());
 
     env
+}
+
+fn format_explode_pair(pair: (Place, Type)) -> String {
+    format!("{{{}, {}}}", pair.0, pair.1)
+}
+
+#[rstest]
+#[case(concrete_env1(), 0)]
+fn explode_env(#[case] env: ConcreteTyping, #[case] n: u32) {
+    set_snapshot_suffix!("{}", n);
+
+    insta::assert_snapshot!(vec_display_elements(
+        &env.explode()
+            .0
+            .iter()
+            .map(|pair| format_explode_pair(pair.clone()))
+            .collect()
+    ));
+}
+
+#[rstest]
+#[case(*get_u32(), 0)]
+#[case(tup1(), 1)]
+#[case(tup2(), 2)]
+fn explode_type(#[case] typ: Type, #[case] n: u32) {
+    set_snapshot_suffix!("{}", n);
+
+    insta::assert_snapshot!(vec_display_elements(&typ.explode().0));
 }

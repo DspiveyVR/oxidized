@@ -1,6 +1,6 @@
 use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
 use serde::Serialize;
-use std::{fmt::Debug, path::Path, vec};
+use std::{fmt::Debug, vec};
 // use color_print;
 use thiserror::Error;
 
@@ -243,16 +243,6 @@ impl ConcreteTyping {
             regions: VecSet::new(),
         }
     }
-
-    // is this relevant if i'm just looking for the regions?  maybe i don't need to go this deeply nested since they're all present in the stack typing.
-    // pub(crate) fn explode(&self) -> VecSet<Type> {
-    //     let mut types = VecSet::new();
-    //     let self_types = self.types.0.clone();
-    //     for t in self_types {
-    //         types = types.union(t.explode());
-    //     }
-    //     types
-    // }
 
     // these two funcitons are highly questionable .  so is the fact that i consistently misspell the word function
     pub(crate) fn explode(&self) -> VecSet<(Place, Type)> {

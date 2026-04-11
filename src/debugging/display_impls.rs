@@ -109,6 +109,18 @@ impl Display for Place {
     }
 }
 
+pub(crate) fn vec_display_elements<T>(vec: &Vec<T>) -> String
+where
+    T: Display,
+{
+    format!(
+        "[{}]",
+        vec.iter()
+            .fold("".to_string(), |a, e| format!("{}, {}", a, e))[2..]
+            .to_string()
+    )
+}
+
 fn path_to_string(path: &Vec<u32>) -> String {
     format!(
         ".{}",

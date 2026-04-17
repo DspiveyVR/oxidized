@@ -1,8 +1,12 @@
 use crate::{
-    ast::OwnershipQualifier, debugging::display_impls::vec_display_elements, oxidized,
-    static_analysis::data_structures::*, testing::set_snapshot_suffix,
+    ast::OwnershipQualifier,
+    debugging::display_impls::{format_explode_pair, vec_display_elements},
+    oxidized,
+    static_analysis::data_structures::*,
+    testing::set_snapshot_suffix,
 };
 use rstest::*;
+use serde::de::value;
 use similar_asserts::assert_eq;
 
 #[fixture]
@@ -72,7 +76,7 @@ fn tup1_pe() -> PlaceExpression {
 pub(crate) fn tup2() -> Type {
     Type {
         binding: Some(Binding {
-            variable: "var".to_string(),
+            variable: "var2".to_string(),
             is_mut: false,
         }),
         variant: TypeVariant::Tuple(vec![
@@ -97,7 +101,7 @@ pub(crate) fn tup2() -> Type {
 
 #[fixture]
 fn tup2_pe() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("(*var.1).0").unwrap())
+    (*oxidized::ExprParser::new().parse("(*var2.1).0").unwrap())
         .try_into()
         .unwrap()
 }
@@ -105,6 +109,13 @@ fn tup2_pe() -> PlaceExpression {
 #[fixture]
 fn var_pe() -> PlaceExpression {
     (*oxidized::ExprParser::new().parse("var").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn var2_pe() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("var2").unwrap())
         .try_into()
         .unwrap()
 }
@@ -123,7 +134,7 @@ fn u32_lookup(#[case] typ: Type, #[case] pe: PlaceExpression, new_concrete: Conc
 
 #[rstest]
 #[case(tup1(), var_pe())]
-#[case(tup2(), var_pe())]
+#[case(tup2(), var2_pe())]
 fn self_lookup(#[case] typ: Type, #[case] var: PlaceExpression, new_concrete: ConcreteTyping) {
     let mut env = new_concrete.clone();
     env = env.add_type(typ.clone());
@@ -156,30 +167,116 @@ pub(crate) fn concrete_env1() -> ConcreteTyping {
     env
 }
 
-fn format_explode_pair(pair: (Place, Type)) -> String {
-    format!("{{{}, {}}}", pair.0, pair.1)
-}
-
 #[rstest]
 #[case(concrete_env1(), 0)]
 fn explode_env(#[case] env: ConcreteTyping, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
-    insta::assert_snapshot!(vec_display_elements(
-        &env.explode()
-            .0
-            .iter()
-            .map(|pair| format_explode_pair(pair.clone()))
-            .collect()
-    ));
+    insta::with_settings!({
+        description => format!("{}", &env),
+        omit_expression => true
+    }, {
+        insta::assert_snapshot!(vec_display_elements(
+            &env.explode()
+                .0
+                .iter()
+                .map(|pair| format_explode_pair(pair.clone()))
+                .collect()
+        ))
+    });
+}
+
+// #[rstest]
+// #[case(*get_u32(), 0)]
+// #[case(tup1(), 1)]
+// #[case(tup2(), 2)]
+// fn explode_type(#[case] typ: Type, #[case] n: u32) {
+//     set_snapshot_suffix!("{}", n);
+
+//     insta::assert_snapshot!(vec_display_elements(&typ.explode().0));
+// }
+
+#[fixture]
+fn test_pe1() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("var.1.0").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn test_pe2() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("var.0.1").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn test_pe3() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("var.0.0").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn test_pe4() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("var.1").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn test_pe5() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("var.1.0.1").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn test_pe6() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("(*var.1).0.1").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn test_pe7() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("*var.0.0").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn test_pe8() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("*(*var.1).0.1").unwrap())
+        .try_into()
+        .unwrap()
+}
+
+#[fixture]
+fn test_pe9() -> PlaceExpression {
+    (*oxidized::ExprParser::new().parse("*var.1.0").unwrap())
+        .try_into()
+        .unwrap()
 }
 
 #[rstest]
-#[case(*get_u32(), 0)]
-#[case(tup1(), 1)]
-#[case(tup2(), 2)]
-fn explode_type(#[case] typ: Type, #[case] n: u32) {
+#[case(var_pe(), test_pe1(), 0)]
+#[case(var_pe(), test_pe2(), 1)]
+#[case(test_pe1(), test_pe2(), 2)]
+#[case(test_pe1(), test_pe3(), 3)]
+#[case(test_pe1(), test_pe4(), 4)]
+#[case(test_pe4(), test_pe5(), 6)]
+#[case(test_pe5(), test_pe6(), 7)]
+#[case(test_pe3(), test_pe7(), 8)]
+#[case(test_pe6(), test_pe8(), 9)]
+#[case(test_pe9(), test_pe1(), 10)]
+fn overlaps(#[case] pe1: PlaceExpression, #[case] pe2: PlaceExpression, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
-    insta::assert_snapshot!(vec_display_elements(&typ.explode().0));
+    insta::with_settings!({
+        description => format!("{} overlaps {}", &pe1, &pe2),
+        omit_expression => true
+    }, {
+        insta::assert_snapshot!(format!("{}", pe1.overlaps(&pe2)))
+    });
 }

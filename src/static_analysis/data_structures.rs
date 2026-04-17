@@ -1,4 +1,7 @@
-use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
+use crate::{
+    ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation},
+    debugging::display_impls::{format_explode_pair, vec_display_elements},
+};
 use serde::Serialize;
 use std::{fmt::Debug, vec};
 // use color_print;
@@ -303,8 +306,9 @@ impl ConcreteTyping {
         let all_pairs = binding_pairs.union(place_pairs);
 
         let mut result = VecSet::new();
+
         for pair in all_pairs.0 {
-            result = result.union(Self::explode_pair(pair.0, pair.1))
+            result = result.union(Self::explode_pair(pair.0, pair.1));
         }
 
         result
@@ -376,18 +380,18 @@ impl Type {
             && (self.copyable == other.copyable)
     }
 
-    pub(crate) fn explode(&self) -> VecSet<Type> {
-        match self.variant.clone() {
-            TypeVariant::Tuple(inner_types) => {
-                let mut new_types = VecSet::new();
-                for t in inner_types {
-                    new_types = new_types.union(t.explode());
-                }
-                new_types
-            }
-            _ => VecSet(vec![self.clone()]),
-        }
-    }
+    // pub(crate) fn explode(&self) -> VecSet<Type> {
+    //     match self.variant.clone() {
+    //         TypeVariant::Tuple(inner_types) => {
+    //             let mut new_types = VecSet::new();
+    //             for t in inner_types {
+    //                 new_types = new_types.union(t.explode());
+    //             }
+    //             new_types
+    //         }
+    //         _ => VecSet(vec![self.clone()]),
+    //     }
+    // }
 }
 
 impl PartialEq for Type {

@@ -104,7 +104,7 @@ impl Display for PlaceExpression {
 
 impl Display for Place {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let place: Place = (*self).clone().into();
+        let place: PlaceExpression = (*self).clone().into();
         write!(f, "{}", place)
     }
 }
@@ -114,9 +114,9 @@ where
     T: Display,
 {
     format!(
-        "[{}]",
+        "[\n{}\n]",
         vec.iter()
-            .fold("".to_string(), |a, e| format!("{}, {}", a, e))[2..]
+            .fold("".to_string(), |a, e| format!("\t{},\n {}", a, e))[7..]
             .to_string()
     )
 }
@@ -129,4 +129,8 @@ fn path_to_string(path: &Vec<u32>) -> String {
             .collect::<Vec<String>>()
             .join(".")
     )
+}
+
+pub(crate) fn format_explode_pair(pair: (Place, Type)) -> String {
+    format!("{{{}, {}}}", pair.0, pair.1)
 }

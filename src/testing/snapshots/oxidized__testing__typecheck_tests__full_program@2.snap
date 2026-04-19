@@ -1,0 +1,17 @@
+---
+source: src/testing/typecheck_tests.rs
+description: "\n    letrgn<'x, 'y, 'z> {\n        let mut x: u32 = 5;\n        let y: &'x uniq u32 = &'x uniq x; \n        let z: &'y uniq &'x uniq u32 = &'y uniq y;\n        let w: &'z uniq &'y uniq &'x uniq u32 = &'z uniq z; ()\n    }\n    "
+---
+ConcreteTyping { 
+	r: [
+		'x -> { unique x },
+		'y -> { unique y },
+		'z -> { unique z }
+	]
+ 	𝜏: [
+		mut x := u32,
+		 y := &'x unique u32,
+		 z := &'y unique &'x unique u32,
+		 w := &'z unique &'y unique &'x unique u32
+	]
+ }

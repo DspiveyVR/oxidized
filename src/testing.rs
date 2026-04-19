@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod unit_tests;
 #[cfg(test)]
+mod typecheck_tests;
+#[cfg(test)]
 mod oxide_programs;
 #[cfg(test)]
 mod display_impl_tests;

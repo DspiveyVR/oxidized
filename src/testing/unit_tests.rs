@@ -6,7 +6,6 @@ use crate::{
     testing::set_snapshot_suffix,
 };
 use rstest::*;
-use serde::de::value;
 use similar_asserts::assert_eq;
 
 #[fixture]

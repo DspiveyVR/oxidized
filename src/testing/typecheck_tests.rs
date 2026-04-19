@@ -10,6 +10,8 @@ use crate::testing::set_snapshot_suffix;
 #[case(oxide_programs::double_ref_bad(), 1)]
 #[case(oxide_programs::triple_ref(), 2)]
 #[case(oxide_programs::triple_ref2(), 3)]
+#[case(oxide_programs::double_ref2(), 4)]
+#[case(oxide_programs::ref_rr(), 5)]
 fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 

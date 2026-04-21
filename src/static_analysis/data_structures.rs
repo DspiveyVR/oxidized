@@ -10,7 +10,7 @@ use thiserror::Error;
 // Types
 #[derive(Serialize, Debug, Clone)]
 pub(crate) struct ConcreteTyping {
-    pub(crate) regions: VecSet<Region>, // FIXME: this will likely have to be double vecs to represent scopes since strictly speaking regions in the same letrgn block will have different scopes in my code.
+    pub(crate) regions: VecSet<Region>,
     // also it should store concrete regions not just regions so i won't need the get_concrete thing
     pub(crate) types: VecSet<Type>,
 }
@@ -84,6 +84,7 @@ pub(crate) enum RegionLevel {
 pub(crate) struct ConcreteRegion {
     pub(crate) name: String,
     pub(crate) loans: VecSet<Loan>,
+    pub(crate) scope: u32,
 }
 
 #[derive(Serialize, Debug, Clone, Eq, PartialEq)]
@@ -228,13 +229,13 @@ impl ConcreteTyping {
         }
     }
 
-    pub(crate) fn new_with_regions(region_names: &Vec<String>) -> Self {
+    pub(crate) fn new_with_regions(region_names: &Vec<String>, scope: u32) -> Self {
         ConcreteTyping {
             types: VecSet::new(),
             regions: VecSet(
                 region_names
                     .iter()
-                    .map(|r| Region::new_concrete(r.to_string()))
+                    .map(|r| Region::new_concrete(r.to_string(), scope))
                     .collect(),
             ),
         }
@@ -589,10 +590,11 @@ impl Region {
         cr
     }
 
-    pub(crate) fn new_concrete(name: String) -> Self {
+    pub(crate) fn new_concrete(name: String, scope: u32) -> Self {
         Region(RegionLevel::ConcreteRegion(ConcreteRegion {
             name: name,
             loans: VecSet::new(),
+            scope,
         }))
     }
 }
@@ -628,6 +630,6 @@ where
             }
         }
 
-        VecSet([&other.0[..], &diff[..]].concat())
+        VecSet([&diff[..], &other.0[..]].concat())
     }
 }

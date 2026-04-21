@@ -6,15 +6,23 @@ use crate::static_analysis::data_structures::*;
 
 impl Display for ConcreteTyping {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let regions_str = self.regions.0.iter().fold("".to_string(), |a, e| {
-            format!("{},\n\t\t{}", a, e.get_concrete())
-        })[1..]
+        let regions_str = self
+            .regions
+            .0
+            .iter()
+            .fold("".to_string(), |a, e| {
+                format!("{},\n\t\t{}", a, e.get_concrete())
+            })
+            .get(1..)
+            .unwrap_or("")
             .to_string();
         let types_str = self
             .types
             .0
             .iter()
-            .fold("".to_string(), |a, e| format!("{},\n\t\t{}", a, e))[1..]
+            .fold("".to_string(), |a, e| format!("{},\n\t\t{}", a, e))
+            .get(1..)
+            .unwrap_or("")
             .to_string();
 
         write!(
@@ -52,7 +60,9 @@ impl Display for Type {
                 "({})",
                 items
                     .iter()
-                    .fold("".to_string(), |a, e| format!("{}, {}", a, e))[2..]
+                    .fold("".to_string(), |a, e| format!("{}, {}", a, e))
+                    .get(2..)
+                    .unwrap_or("")
                     .to_string()
             ),
         };

@@ -1,0 +1,5 @@
+---
+source: src/testing/typecheck_tests.rs
+description: "\n    letrgn<'x> {\n        let mut x: u32 = 5;\n        letrgn<'z> {\n            let y: &'x shrd u32 = &'z shrd x; ()\n        }\n    }\n    "
+---
+Region 'z -> { shared x } must outlive region 'x -> {  }

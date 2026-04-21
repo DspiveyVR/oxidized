@@ -62,7 +62,42 @@ pub(crate) fn ref_rr() -> &'static str {
     "
     letrgn<'x, 'y> {
         let mut x: u32 = 5;
-        let y: &'x uniq u32 = &'y uniq x; ()
+        let y: &'x shrd u32 = &'y shrd x; ()
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn ref_rr_scopes() -> &'static str {
+    "
+    letrgn<'x> {
+        let mut x: u32 = 5;
+        letrgn<'z> {
+            let y: &'z shrd u32 = &'x shrd x; ()
+        }
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn ref_rr_scopes_bad() -> &'static str {
+    "
+    letrgn<'x> {
+        let mut x: u32 = 5;
+        letrgn<'z> {
+            let y: &'x shrd u32 = &'z shrd x; ()
+        }
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn unsafe_place() -> &'static str {
+    "
+    letrgn<'x, 'y> {
+        let mut x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: &'y uniq u32 = &'y uniq x; ()
     }
     "
 }

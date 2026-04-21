@@ -28,7 +28,10 @@ impl Expression {
         continuation_typing: ConcreteTyping,
     ) -> Result<(ConcreteTyping, Type), OxidizedError> {
         match self {
-            Expression::Letrgn(..) => err_if_dead(self.t_letrgn(stack_typing, continuation_typing)),
+            Expression::Letrgn(..) => Self::pop_vars(
+                stack_typing.clone(),
+                err_if_dead(self.t_letrgn(stack_typing, continuation_typing)),
+            ),
             Expression::Sequence(..) => err_if_dead(self.t_seq(stack_typing, continuation_typing)),
             Expression::Let { .. } => err_if_dead(self.t_let(stack_typing, continuation_typing)),
             Expression::Ref(..) => err_if_dead(self.t_borrow(stack_typing, continuation_typing)),
@@ -42,6 +45,20 @@ impl Expression {
             }
             _ => panic!("Unexpected error"),
         }
+    }
+
+    fn pop_vars(
+        stack_typing: ConcreteTyping,
+        tc_result: Result<(ConcreteTyping, Type), OxidizedError>,
+    ) -> Result<(ConcreteTyping, Type), OxidizedError> {
+        let new_stack_typing = ConcreteTyping {
+            regions: VecSet(
+                (tc_result.clone()?.0.regions.0[..stack_typing.regions.0.len()]).to_vec(),
+            ),
+            types: VecSet((tc_result.clone()?.0.types.0[..stack_typing.types.0.len()]).to_vec()),
+        };
+
+        Ok((new_stack_typing, tc_result?.1))
     }
 
     fn t_constant(constant: &Constant) -> Result<Type, OxidizedError> {
@@ -114,14 +131,20 @@ impl Expression {
         }
     }
 
-    fn t_letrgn(
+    pub(crate) fn t_letrgn(
         &self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
     ) -> Result<(ConcreteTyping, Type), OxidizedError> {
         if let Expression::Letrgn(region_names, inner_exp) = self {
             stack_typing.check_conflicting_region_names(region_names)?;
-            let local_types = ConcreteTyping::new_with_regions(region_names);
+            let scope = if let Some(region) = stack_typing.regions.0.last() {
+                region.get_concrete().scope + 1
+            } else {
+                0
+            };
+
+            let local_types = ConcreteTyping::new_with_regions(region_names, scope);
             inner_exp.typecheck(stack_typing.union(local_types), continuation_typing)
         } else {
             panic!("Unexpected error");
@@ -298,12 +321,18 @@ impl ConcreteTyping {
             .regions
             .0
             .iter()
-            .position(|r| r.get_concrete().name == region1.get_concrete().name)
-            < self
+            .find(|r| r.get_concrete().name == region1.get_concrete().name)
+            .unwrap()
+            .get_concrete()
+            .scope
+            <= self
                 .regions
                 .0
                 .iter()
-                .position(|r| r.get_concrete().name == region2.get_concrete().name))
+                .find(|r| r.get_concrete().name == region2.get_concrete().name)
+                .unwrap()
+                .get_concrete()
+                .scope)
         {
             return Err(OxidizedError::ConcreteOutlivesError(
                 region1.get_concrete().clone(),

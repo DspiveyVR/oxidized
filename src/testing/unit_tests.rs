@@ -10,7 +10,7 @@ use similar_asserts::assert_eq;
 
 #[fixture]
 pub(crate) fn new_concrete() -> ConcreteTyping {
-    ConcreteTyping::new_with_regions(&vec!["a".to_string()])
+    ConcreteTyping::new_with_regions(&vec!["a".to_string()], 0)
 }
 
 pub(crate) fn get_u32() -> Box<Type> {
@@ -158,6 +158,7 @@ pub(crate) fn concrete_env1() -> ConcreteTyping {
                 place_expression: tup2_pe(),
             },
         ]),
+        scope: 0
     }));
     env = env.add_region(a);
     env = env.add_type(tup1());

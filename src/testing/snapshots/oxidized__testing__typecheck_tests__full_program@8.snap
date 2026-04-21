@@ -1,0 +1,5 @@
+---
+source: src/testing/typecheck_tests.rs
+description: "\n    letrgn<'x, 'y> {\n        let mut x: u32 = 5;\n        let y: &'x uniq u32 = &'x uniq x;\n        let z: &'y uniq u32 = &'y uniq x; ()\n    }\n    "
+---
+Cannot borrow x uniquely while a unique reference to x exists

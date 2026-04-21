@@ -23,9 +23,9 @@ pub Expr: Box<Expression> = {
         }),
     #[precedence(level="3")] #[assoc(side="left")]
     <e1: Expr> ";" <e2: Expr> => Box::new(Expression::Sequence(e1, e2)),
-    #[precedence(level="4")] #[assoc(side="left")]
-    // FIXME: need the ability to have only one region in here
+    #[precedence(level="2")] #[assoc(side="left")]
     "letrgn" "<" <regions: RegionCSV> ">" "{" <e: Expr> "}" => Box::new(Expression::Letrgn(regions, e)),
+    "letrgn" "<" <region: RegionName> ">" "{" <e: Expr> "}" => Box::new(Expression::Letrgn(vec![region], e)),
 };
 
 LvalueBase: Box<Expression> = {

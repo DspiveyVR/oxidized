@@ -20,6 +20,7 @@ fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
     let ast = oxidized::ExprParser::new().parse(program).unwrap();
+    dbg!(&ast);
 
     insta::with_settings!({
         description => program,

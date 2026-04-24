@@ -8,8 +8,8 @@ ConcreteTyping {
 		'y -> { unique y }
 	]
  	𝜏: [
-		mut x := u32,
-		 y := &'x unique u32,
-		 z := &'y unique &'x unique u32
+		(mut x := u32)†,
+		( y := &'x unique u32)†,
+		( z := &'y unique &'x unique u32)†
 	]
  }

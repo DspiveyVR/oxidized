@@ -165,7 +165,7 @@ impl Expression {
                 e1.t_let(stack_typing, continuation_typing, e2)
             } else {
                 let (gamma1, _) = e1.typecheck(stack_typing, continuation_typing.clone())?;
-    
+
                 e2.typecheck(
                     gamma1.gc_loans(continuation_typing.clone()),
                     continuation_typing.clone(),
@@ -311,7 +311,6 @@ impl ConcreteTyping {
     ) -> Result<Self, OxidizedError> {
         match mode {
             RegionRewriteMode::Plus => self.ol_combine_concrete(region1, region2),
-            _ => panic!("Unexpected error"),
         }
     }
 

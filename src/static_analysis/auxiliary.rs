@@ -32,9 +32,9 @@ impl ConcreteTyping {
 
     // TODO: Actually implement NLL
     pub(crate) fn gc_loans(&self, continuation_typing: Self) -> Self {
-        let stack_clone = self.clone();
+        let mut stack_clone = self.clone();
         let env_union = stack_clone.types.union(continuation_typing.types).0;
-        for mut r in stack_clone.regions.0.clone() {
+        for r in stack_clone.regions.0.iter_mut() {
             if !env_union.iter().any(|t| {
                 if let TypeVariant::Reference(ref_type) = &t.variant {
                     let RegionLevel::ConcreteRegion(cr) = &r.0;

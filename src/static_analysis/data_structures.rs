@@ -1,6 +1,5 @@
 use crate::{
     ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation},
-    debugging::display_impls::{format_explode_pair, vec_display_elements},
 };
 use serde::Serialize;
 use std::{fmt::Debug, vec};
@@ -68,7 +67,7 @@ pub(crate) struct ReferenceType {
 pub(crate) enum Ternary {
     Yes,
     No,
-    Maybe,
+    // Maybe,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -96,7 +95,7 @@ pub(crate) struct Loan {
 #[derive(Serialize, Debug, Clone)]
 pub(crate) enum RegionRewriteMode {
     Plus,
-    Equals,
+    // Equals,
 }
 
 #[derive(Serialize, Debug, Clone)]

@@ -311,7 +311,6 @@ fn overlaps(#[case] pe1: PlaceExpression, #[case] pe2: PlaceExpression, #[case] 
     });
 }
 
-
 #[rstest]
 #[case(tup2(), tup2_inner_binding())]
 fn not_equal(#[case] ty1: Type, #[case] ty2: Type) {

@@ -94,10 +94,10 @@ impl Expression {
     ) -> Result<(ConcreteTyping, Type), OxidizedError> {
         if let Expression::Ref(ref_annotation, e) = self {
             let mut region = stack_typing.get_region(ref_annotation.0.to_string())?;
-            if !region.get_concrete().loans.0.is_empty() {
+            if !region.loans.0.is_empty() {
                 return Err(OxidizedError::NonemptyRegion(
                     ref_annotation.0.clone(),
-                    region.get_concrete().loans.clone(),
+                    region.loans.clone(),
                 ));
             }
             // TODO: rnic
@@ -124,7 +124,7 @@ impl Expression {
                 copyable: false,
             };
 
-            region = region.get_concrete().set_loans(loans);
+            region = region.set_loans(loans);
 
             Ok((
                 stack_typing.set_region(ref_annotation.0.to_string(), region),
@@ -143,7 +143,7 @@ impl Expression {
         if let Expression::Letrgn(region_names, inner_exp) = self {
             stack_typing.check_conflicting_region_names(region_names)?;
             let scope = if let Some(region) = stack_typing.regions.0.last() {
-                region.get_concrete().scope + 1
+                region.scope + 1
             } else {
                 0
             };
@@ -253,7 +253,7 @@ impl ConcreteTyping {
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let converted_place = place.clone().into();
         for region in self.regions.union(continuation_typing.regions).0 {
-            for loan in region.get_concrete().clone().loans.0 {
+            for loan in region.clone().loans.0 {
                 if (ownership_qualifier == OwnershipQualifier::Uniq
                     || loan.ownership_qualifier == OwnershipQualifier::Uniq)
                     && loan.place_expression.overlaps(&converted_place)
@@ -305,8 +305,8 @@ impl ConcreteTyping {
     // Outlives
     fn region_outlives(
         &self,
-        region1: Region,
-        region2: Region,
+        region1: ConcreteRegion,
+        region2: ConcreteRegion,
         mode: RegionRewriteMode,
     ) -> Result<Self, OxidizedError> {
         match mode {
@@ -315,44 +315,43 @@ impl ConcreteTyping {
     }
 
     // TODO: closure restriction rule
-    fn ol_combine_concrete(&self, region1: Region, region2: Region) -> Result<Self, OxidizedError> {
-        if !(self.rnrb(region1.get_concrete().clone()) && self.rnrb(region2.get_concrete().clone()))
+    fn ol_combine_concrete(&self, region1: ConcreteRegion, region2: ConcreteRegion) -> Result<Self, OxidizedError> {
+        if !(self.rnrb(region1.clone()) && self.rnrb(region2.clone()))
         {
             return Err(OxidizedError::ConcreteOutlivesError(
-                region1.get_concrete().clone(),
-                region2.get_concrete().clone(),
+                region1.clone(),
+                region2.clone(),
             ));
         }
         if !(self
             .regions
             .0
             .iter()
-            .find(|r| r.get_concrete().name == region1.get_concrete().name)
+            .find(|r| r.name == region1.name)
             .unwrap()
-            .get_concrete()
+            
             .scope
             <= self
                 .regions
                 .0
                 .iter()
-                .find(|r| r.get_concrete().name == region2.get_concrete().name)
+                .find(|r| r.name == region2.name)
                 .unwrap()
-                .get_concrete()
+                
                 .scope)
         {
             return Err(OxidizedError::ConcreteOutlivesError(
-                region1.get_concrete().clone(),
-                region2.get_concrete().clone(),
+                region1.clone(),
+                region2.clone(),
             ));
         }
         let new_loans = region1
-            .get_concrete()
+            
             .loans
-            .union(region2.get_concrete().clone().loans);
+            .union(region2.clone().loans);
         let mut new_r2 = region2.clone();
-        let RegionLevel::ConcreteRegion(ref mut cr) = new_r2.0;
-        cr.loans = new_loans;
+        new_r2.loans = new_loans;
 
-        Ok(self.set_region(region2.get_concrete().clone().name, new_r2))
+        Ok(self.set_region(region2.clone().name, new_r2))
     }
 }

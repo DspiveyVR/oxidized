@@ -1,6 +1,4 @@
-use crate::{
-    ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation},
-};
+use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
 use serde::Serialize;
 use std::{fmt::Debug, vec};
 // use color_print;
@@ -9,8 +7,7 @@ use thiserror::Error;
 // Types
 #[derive(Serialize, Debug, Clone)]
 pub(crate) struct ConcreteTyping {
-    pub(crate) regions: VecSet<Region>,
-    // also it should store concrete regions not just regions so i won't need the get_concrete thing
+    pub(crate) regions: VecSet<ConcreteRegion>,
     pub(crate) types: VecSet<Type>,
 }
 
@@ -175,7 +172,7 @@ impl ConcreteTyping {
         }
     }
 
-    pub(crate) fn add_region(&self, new_region: Region) -> Self {
+    pub(crate) fn add_region(&self, new_region: ConcreteRegion) -> Self {
         ConcreteTyping {
             regions: VecSet([&self.regions.0[..], &vec![new_region][..]].concat()),
             types: self.types.clone(),
@@ -199,28 +196,17 @@ impl ConcreteTyping {
         }
     }
 
-    pub(crate) fn get_region(&self, name: String) -> Result<Region, OxidizedError> {
-        if let Some(region) = self
-            .regions
-            .0
-            .clone()
-            .into_iter()
-            .find(|r| r.get_concrete().name == name)
-        {
+    pub(crate) fn get_region(&self, name: String) -> Result<ConcreteRegion, OxidizedError> {
+        if let Some(region) = self.regions.0.clone().into_iter().find(|r| r.name == name) {
             Ok(region)
         } else {
             Err(OxidizedError::NonexistentRegion(name))
         }
     }
 
-    pub(crate) fn set_region(&self, name: String, new_region: Region) -> Self {
+    pub(crate) fn set_region(&self, name: String, new_region: ConcreteRegion) -> Self {
         let mut new_env = self.clone();
-        if let Some(r) = new_env
-            .regions
-            .0
-            .iter_mut()
-            .find(|r| r.get_concrete().name == name)
-        {
+        if let Some(r) = new_env.regions.0.iter_mut().find(|r| r.name == name) {
             *r = new_region;
             new_env
         } else {
@@ -234,7 +220,7 @@ impl ConcreteTyping {
             regions: VecSet(
                 region_names
                     .iter()
-                    .map(|r| Region::new_concrete(r.to_string(), scope))
+                    .map(|r| ConcreteRegion::new(r.to_string(), scope))
                     .collect(),
             ),
         }
@@ -269,7 +255,7 @@ impl ConcreteTyping {
             .regions
             .0
             .iter()
-            .map(|r| r.get_concrete().clone())
+            .map(|r| r.clone())
             .collect();
         let all_place_expressions: Vec<PlaceExpression> = all_concrete_regions
             .iter()
@@ -576,12 +562,12 @@ impl PlaceExpression {
     }
 }
 
-impl PartialEq for Region {
+impl PartialEq for ConcreteRegion {
     fn eq(&self, other: &Self) -> bool {
-        self.get_concrete().name == other.get_concrete().name
+        self.name == other.name
     }
 }
-impl Eq for Region {}
+impl Eq for ConcreteRegion {}
 
 impl Region {
     pub(crate) fn get_concrete(&self) -> &ConcreteRegion {
@@ -590,19 +576,23 @@ impl Region {
     }
 
     pub(crate) fn new_concrete(name: String, scope: u32) -> Self {
-        Region(RegionLevel::ConcreteRegion(ConcreteRegion {
-            name: name,
-            loans: VecSet::new(),
-            scope,
-        }))
+        Region(RegionLevel::ConcreteRegion(ConcreteRegion::new(name, scope)))
     }
 }
 
 impl ConcreteRegion {
-    pub(crate) fn set_loans(&self, loans: VecSet<Loan>) -> Region {
+    pub(crate) fn new(name: String, scope: u32) -> Self {
+        ConcreteRegion {
+            name: name,
+            loans: VecSet::new(),
+            scope,
+        }
+    }
+
+    pub(crate) fn set_loans(&self, loans: VecSet<Loan>) -> ConcreteRegion {
         let mut new_region = self.clone();
         new_region.loans = loans;
-        Region(RegionLevel::ConcreteRegion(new_region))
+        new_region
     }
 }
 

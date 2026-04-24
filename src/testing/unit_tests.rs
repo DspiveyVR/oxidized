@@ -176,7 +176,7 @@ fn self_lookup(#[case] typ: Type, #[case] var: PlaceExpression, new_concrete: Co
 #[fixture]
 pub(crate) fn concrete_env1() -> ConcreteTyping {
     let mut env = ConcreteTyping::new();
-    let a = Region(RegionLevel::ConcreteRegion(ConcreteRegion {
+    let a = ConcreteRegion {
         name: "a".to_string(),
         loans: VecSet(vec![
             Loan {
@@ -189,7 +189,7 @@ pub(crate) fn concrete_env1() -> ConcreteTyping {
             },
         ]),
         scope: 0,
-    }));
+    };
     env = env.add_region(a);
     env = env.add_type(tup1());
     env = env.add_type(tup2());

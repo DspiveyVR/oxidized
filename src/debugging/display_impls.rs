@@ -11,7 +11,7 @@ impl Display for ConcreteTyping {
             .0
             .iter()
             .fold("".to_string(), |a, e| {
-                format!("{},\n\t\t{}", a, e.get_concrete())
+                format!("{},\n\t\t{}", a, e)
             })
             .get(1..)
             .unwrap_or("")

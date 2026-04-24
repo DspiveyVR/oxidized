@@ -8,9 +8,8 @@ impl ConcreteTyping {
             if let TypeVariant::Reference(reference) = pair.1.variant.clone() {
                 if reference.region_name == region.name {
                     !self.regions.0.iter().any(|r| {
-                        let cr = r.get_concrete();
-                        if cr.name != region.name {
-                            cr.loans.0.iter().any(|loan| {
+                        if r.name != region.name {
+                            r.loans.0.iter().any(|loan| {
                                 if let PlaceExpression::Deref(pe) = loan.place_expression.clone() {
                                     *pe == pair.0.clone().into()
                                 } else {
@@ -37,14 +36,12 @@ impl ConcreteTyping {
         for r in stack_clone.regions.0.iter_mut() {
             if !env_union.iter().any(|t| {
                 if let TypeVariant::Reference(ref_type) = &t.variant {
-                    let RegionLevel::ConcreteRegion(cr) = &r.0;
-                    cr.name == ref_type.region_name
+                    r.name == ref_type.region_name
                 } else {
                     false
                 }
             }) {
-                let RegionLevel::ConcreteRegion(cr) = &mut r.0;
-                cr.loans.0.clear();
+                r.loans.0.clear();
             }
         }
 
@@ -59,10 +56,10 @@ impl ConcreteTyping {
             .regions
             .0
             .iter()
-            .find(|r| region_names.contains(&r.get_concrete().name))
+            .find(|r| region_names.contains(&r.name))
         {
             Err(OxidizedError::RegionNameConflict(
-                conflicting_region.get_concrete().name.to_string(),
+                conflicting_region.name.to_string(),
             ))
         } else {
             Ok(())

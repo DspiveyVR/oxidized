@@ -1,0 +1,5 @@
+---
+source: src/testing/unit_tests.rs
+description: u32 is copyable
+---
+true

@@ -17,7 +17,6 @@ pub(crate) struct Type {
     pub(crate) variant: TypeVariant,
     pub(crate) is_sized: Ternary,
     pub(crate) is_dead: Ternary,
-    pub(crate) copyable: bool,
 }
 
 #[derive(Serialize, Debug, Clone, Eq, PartialEq)]
@@ -251,12 +250,8 @@ impl ConcreteTyping {
                 .collect(),
         );
 
-        let all_concrete_regions: Vec<ConcreteRegion> = self
-            .regions
-            .0
-            .iter()
-            .map(|r| r.clone())
-            .collect();
+        let all_concrete_regions: Vec<ConcreteRegion> =
+            self.regions.0.iter().map(|r| r.clone()).collect();
         let all_place_expressions: Vec<PlaceExpression> = all_concrete_regions
             .iter()
             .map(|r| r.loans.clone())
@@ -327,7 +322,92 @@ impl ConcreteTyping {
     }
 }
 
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        let variant_equal = match &self.variant {
+            TypeVariant::Base(base_type) => {
+                if let TypeVariant::Base(other_type) = &other.variant {
+                    base_type == other_type
+                } else {
+                    false
+                }
+            }
+            TypeVariant::Reference(reference_type) => {
+                if let TypeVariant::Reference(other_type) = &other.variant {
+                    reference_type.ownership_qualifier == other_type.ownership_qualifier
+                        && reference_type.region_name == other_type.region_name
+                        && reference_type.target_type == other_type.target_type
+                } else {
+                    false
+                }
+            }
+            TypeVariant::Tuple(items) => {
+                if let TypeVariant::Tuple(other_type) = &other.variant {
+                    items
+                        .iter()
+                        .zip(other_type.iter())
+                        .all(|tup| tup.0 == tup.1)
+                } else {
+                    false
+                }
+            }
+        };
+
+        variant_equal
+            && (self.is_sized == other.is_sized)
+            && (self.is_dead == other.is_dead)
+            && (self.copyable() == other.copyable())
+    }
+}
+impl Eq for Type {}
+
+impl From<TypeAnnotation> for Type {
+    fn from(value: TypeAnnotation) -> Self {
+        Self {
+            binding: None,
+            variant: match value {
+                TypeAnnotation::Base(base_type_annotation) => {
+                    TypeVariant::Base(match base_type_annotation {
+                        BaseTypeAnnotation::Bool => BaseType::Bool,
+                        BaseTypeAnnotation::U32 => BaseType::U32,
+                        BaseTypeAnnotation::Unit => BaseType::Unit,
+                    })
+                }
+                TypeAnnotation::Reference(reference_annotation, type_annotation) => {
+                    TypeVariant::Reference(ReferenceType {
+                        region_name: reference_annotation.0,
+                        ownership_qualifier: reference_annotation.1,
+                        target_type: Box::new((*type_annotation).into()),
+                    })
+                }
+                TypeAnnotation::Tuple(type_annotations) => TypeVariant::Tuple(
+                    type_annotations
+                        .into_iter()
+                        .map(|ta| Box::new((*ta).into()))
+                        .collect(),
+                ),
+            },
+            is_sized: Ternary::Yes,
+            is_dead: Ternary::No,
+        }
+    }
+}
+
 impl Type {
+    pub(crate) fn copyable(&self) -> bool {
+        match &self.variant {
+            TypeVariant::Base(_) => true,
+            TypeVariant::Reference(reference_type) => {
+                if reference_type.ownership_qualifier == OwnershipQualifier::Shrd {
+                    true
+                } else {
+                    false
+                }
+            }
+            TypeVariant::Tuple(types) => types.iter().all(|typ| typ.copyable()),
+        }
+    }
+
     // Same as partial eq impl but doesn't check region names.  This is useful when I need to check type equality before region rewriting.
     pub(crate) fn eq_unchecked_regions(&self, other: &Self) -> bool {
         let variant_equal = match &self.variant {
@@ -363,96 +443,9 @@ impl Type {
         variant_equal
             && (self.is_sized == other.is_sized)
             && (self.is_dead == other.is_dead)
-            && (self.copyable == other.copyable)
+            && (self.copyable() == other.copyable())
     }
 
-    // pub(crate) fn explode(&self) -> VecSet<Type> {
-    //     match self.variant.clone() {
-    //         TypeVariant::Tuple(inner_types) => {
-    //             let mut new_types = VecSet::new();
-    //             for t in inner_types {
-    //                 new_types = new_types.union(t.explode());
-    //             }
-    //             new_types
-    //         }
-    //         _ => VecSet(vec![self.clone()]),
-    //     }
-    // }
-}
-
-impl PartialEq for Type {
-    fn eq(&self, other: &Self) -> bool {
-        let variant_equal = match &self.variant {
-            TypeVariant::Base(base_type) => {
-                if let TypeVariant::Base(other_type) = &other.variant {
-                    base_type == other_type
-                } else {
-                    false
-                }
-            }
-            TypeVariant::Reference(reference_type) => {
-                if let TypeVariant::Reference(other_type) = &other.variant {
-                    reference_type.ownership_qualifier == other_type.ownership_qualifier
-                        && reference_type.region_name == other_type.region_name
-                        && reference_type.target_type == other_type.target_type
-                } else {
-                    false
-                }
-            }
-            TypeVariant::Tuple(items) => {
-                if let TypeVariant::Tuple(other_type) = &other.variant {
-                    items
-                        .iter()
-                        .zip(other_type.iter())
-                        .all(|tup| tup.0 == tup.1)
-                } else {
-                    false
-                }
-            }
-        };
-
-        variant_equal
-            && (self.is_sized == other.is_sized)
-            && (self.is_dead == other.is_dead)
-            && (self.copyable == other.copyable)
-    }
-}
-impl Eq for Type {}
-
-impl From<TypeAnnotation> for Type {
-    fn from(value: TypeAnnotation) -> Self {
-        Self {
-            binding: None,
-            variant: match value {
-                TypeAnnotation::Base(base_type_annotation) => {
-                    TypeVariant::Base(match base_type_annotation {
-                        BaseTypeAnnotation::Bool => BaseType::Bool,
-                        BaseTypeAnnotation::U32 => BaseType::U32,
-                        BaseTypeAnnotation::Unit => BaseType::Unit,
-                    })
-                }
-                TypeAnnotation::Reference(reference_annotation, type_annotation) => {
-                    TypeVariant::Reference(ReferenceType {
-                        region_name: reference_annotation.0,
-                        ownership_qualifier: reference_annotation.1,
-                        target_type: Box::new((*type_annotation).into()),
-                    })
-                }
-                TypeAnnotation::Tuple(type_annotations) => TypeVariant::Tuple(
-                    type_annotations
-                        .into_iter()
-                        .map(|ta| Box::new((*ta).into()))
-                        .collect(),
-                ),
-            },
-            is_sized: Ternary::Yes,
-            is_dead: Ternary::No,
-            copyable: false, // TODO: actually implement copyable logic
-        }
-    }
-}
-
-impl Type {
     // dun dunununun RE! dun dunununun SPECT! dun dunununun WALK! dun dun dun dununununununununun
     fn walk(&self, place_expression: PlaceExpression) -> Result<Self, OxidizedError> {
         match place_expression {
@@ -576,7 +569,9 @@ impl Region {
     }
 
     pub(crate) fn new_concrete(name: String, scope: u32) -> Self {
-        Region(RegionLevel::ConcreteRegion(ConcreteRegion::new(name, scope)))
+        Region(RegionLevel::ConcreteRegion(ConcreteRegion::new(
+            name, scope,
+        )))
     }
 }
 

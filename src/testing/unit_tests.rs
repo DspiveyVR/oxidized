@@ -19,7 +19,6 @@ pub(crate) fn get_u32() -> Box<Type> {
         variant: TypeVariant::Base(BaseType::U32),
         is_sized: Ternary::Yes,
         is_dead: Ternary::No,
-        copyable: false,
     })
 }
 
@@ -37,7 +36,6 @@ pub(crate) fn get_ref_to(
         }),
         is_sized: Ternary::Yes,
         is_dead: Ternary::No,
-        copyable: false,
     })
 }
 
@@ -55,12 +53,10 @@ pub(crate) fn tup1() -> Type {
                 variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
                 is_sized: Ternary::Yes,
                 is_dead: Ternary::No,
-                copyable: false,
             }),
         ]),
         is_sized: Ternary::Yes,
         is_dead: Ternary::No,
-        copyable: false,
     }
 }
 
@@ -86,7 +82,6 @@ pub(crate) fn tup2() -> Type {
                     variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
                     is_sized: Ternary::Yes,
                     is_dead: Ternary::No,
-                    copyable: false,
                 }),
                 OwnershipQualifier::Uniq,
                 "a".to_string(),
@@ -94,7 +89,31 @@ pub(crate) fn tup2() -> Type {
         ]),
         is_sized: Ternary::Yes,
         is_dead: Ternary::No,
-        copyable: false,
+    }
+}
+
+#[fixture]
+pub(crate) fn tup3() -> Type {
+    Type {
+        binding: Some(Binding {
+            variable: "var2".to_string(),
+            is_mut: false,
+        }),
+        variant: TypeVariant::Tuple(vec![
+            get_u32(),
+            get_ref_to(
+                Box::new(Type {
+                    binding: None,
+                    variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
+                    is_sized: Ternary::Yes,
+                    is_dead: Ternary::No,
+                }),
+                OwnershipQualifier::Shrd,
+                "a".to_string(),
+            ),
+        ]),
+        is_sized: Ternary::Yes,
+        is_dead: Ternary::No,
     }
 }
 
@@ -116,7 +135,6 @@ pub(crate) fn tup2_inner_binding() -> Type {
                     variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
                     is_sized: Ternary::Yes,
                     is_dead: Ternary::No,
-                    copyable: false,
                 }),
                 OwnershipQualifier::Uniq,
                 "a".to_string(),
@@ -124,7 +142,6 @@ pub(crate) fn tup2_inner_binding() -> Type {
         ]),
         is_sized: Ternary::Yes,
         is_dead: Ternary::No,
-        copyable: false,
     }
 }
 
@@ -315,4 +332,28 @@ fn overlaps(#[case] pe1: PlaceExpression, #[case] pe2: PlaceExpression, #[case] 
 #[case(tup2(), tup2_inner_binding())]
 fn not_equal(#[case] ty1: Type, #[case] ty2: Type) {
     assert_eq!(ty1, ty2)
+}
+
+#[rstest]
+#[case(*get_u32(), 0)]
+#[case(tup1(), 1)]
+#[case(tup2(), 2)]
+#[case(*get_ref_to(get_u32(), OwnershipQualifier::Shrd, "a".to_string()), 3)]
+#[case(*get_ref_to(get_u32(), OwnershipQualifier::Uniq, "a".to_string()), 4)]
+#[case(*get_ref_to(Box::new(tup1()), OwnershipQualifier::Shrd, "a".to_string()), 5)]
+#[case(*get_ref_to(Box::new(tup1()), OwnershipQualifier::Uniq, "a".to_string()), 6)]
+#[case(*get_ref_to(Box::new(tup2()), OwnershipQualifier::Shrd, "a".to_string()), 7)]
+#[case(*get_ref_to(Box::new(tup2()), OwnershipQualifier::Uniq, "a".to_string()), 8)]
+#[case(tup3(), 9)]
+#[case(*get_ref_to(Box::new(tup3()), OwnershipQualifier::Shrd, "a".to_string()), 10)]
+#[case(*get_ref_to(Box::new(tup3()), OwnershipQualifier::Uniq, "a".to_string()), 11)]
+fn copyable(#[case] typ: Type, #[case] n: u32) {
+    set_snapshot_suffix!("{}", n);
+
+    insta::with_settings!({
+        description => format!("{} is copyable", &typ),
+        omit_expression => true
+    }, {
+        insta::assert_snapshot!(format!("{}", typ.copyable()))
+    });
 }

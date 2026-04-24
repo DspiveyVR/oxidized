@@ -1,0 +1,5 @@
+---
+source: src/testing/unit_tests.rs
+description: "&'a shared  var2 := (u32, &'a unique (u32, u32)) is copyable"
+---
+true

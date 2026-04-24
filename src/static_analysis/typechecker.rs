@@ -72,7 +72,6 @@ impl Expression {
                 variant: TypeVariant::Base(BaseType::Unit),
                 is_sized: Ternary::No,
                 is_dead: Ternary::No,
-                copyable: false,
             }),
             crate::ast::Constant::True => todo!(),
             crate::ast::Constant::False => todo!(),
@@ -81,7 +80,6 @@ impl Expression {
                 variant: TypeVariant::Base(BaseType::U32),
                 is_sized: Ternary::Yes,
                 is_dead: Ternary::No,
-                copyable: false,
             }),
         }
     }
@@ -121,7 +119,6 @@ impl Expression {
                 }),
                 is_sized: Ternary::Yes,
                 is_dead: Ternary::No,
-                copyable: false,
             };
 
             region = region.set_loans(loans);

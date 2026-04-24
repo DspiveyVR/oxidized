@@ -15,6 +15,7 @@ use crate::testing::set_snapshot_suffix;
 #[case(oxide_programs::ref_rr_scopes(), 6)]
 #[case(oxide_programs::ref_rr_scopes_bad(), 7)]
 #[case(oxide_programs::unsafe_place(), 8)]
+#[case(oxide_programs::gc_test(), 9)]
 fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 

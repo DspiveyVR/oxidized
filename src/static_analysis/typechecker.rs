@@ -33,7 +33,11 @@ impl Expression {
                 err_if_dead(self.t_letrgn(stack_typing, continuation_typing)),
             ),
             Expression::Sequence(..) => err_if_dead(self.t_seq(stack_typing, continuation_typing)),
-            Expression::Let { .. } => err_if_dead(self.t_let(stack_typing, continuation_typing)),
+            Expression::Let { .. } => err_if_dead(self.t_let(
+                stack_typing,
+                continuation_typing,
+                &Expression::Constant(Constant::Unit),
+            )), // If a let is by itself not sequenced then its basically just dead.
             Expression::Ref(..) => err_if_dead(self.t_borrow(stack_typing, continuation_typing)),
             Expression::Variable(var) => err_if_dead(Ok((
                 stack_typing.clone(),
@@ -157,12 +161,16 @@ impl Expression {
         continuation_typing: ConcreteTyping,
     ) -> Result<(ConcreteTyping, Type), OxidizedError> {
         if let Expression::Sequence(e1, e2) = self {
-            let (gamma1, _) = e1.typecheck(stack_typing, continuation_typing.clone())?;
-
-            e2.typecheck(
-                gamma1.gc_loans(continuation_typing.clone()),
-                continuation_typing.clone(),
-            )
+            if let Expression::Let { .. } = &**e1 {
+                e1.t_let(stack_typing, continuation_typing, e2)
+            } else {
+                let (gamma1, _) = e1.typecheck(stack_typing, continuation_typing.clone())?;
+    
+                e2.typecheck(
+                    gamma1.gc_loans(continuation_typing.clone()),
+                    continuation_typing.clone(),
+                )
+            }
         } else {
             panic!("Unexpected error");
         }
@@ -172,16 +180,15 @@ impl Expression {
         &self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
+        e2: &Expression,
     ) -> Result<(ConcreteTyping, Type), OxidizedError> {
         if let Expression::Let {
             name,
             is_mut,
             type_annotation,
-            e1,
-            e2,
+            e: e1,
         } = self
         {
-            // TODO: type error
             let (gamma1, return_type) = e1.typecheck(stack_typing, continuation_typing.clone())?;
 
             let annotated_type: Type = type_annotation.clone().into();

@@ -16,6 +16,11 @@ fn main() {
         letrgn<'x, 'y> {
             let mut x: u32 = 5;
             let y: &'x uniq u32 = &'y uniq x; ()
+        };
+
+        letrgn<'x, 'y> {
+            let mut x: u32 = 5;
+            let y: &'x uniq u32 = &'y uniq x; ()
         }
     ",
         )

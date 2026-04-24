@@ -27,8 +27,7 @@ pub enum Expression {
         name: String,
         is_mut: bool,
         type_annotation: TypeAnnotation,
-        e1: Box<Expression>,
-        e2: Box<Expression>,
+        e: Box<Expression>,
     },
     Ref(ReferenceAnnotation, Box<Expression>),
     Deref(Box<Expression>),
@@ -74,17 +73,15 @@ impl Display for Expression {
                 name,
                 is_mut,
                 type_annotation,
-                e1,
-                e2,
+                e,
             } => {
                 return write!(
                     f,
-                    "\n    let {} {}: {:?} = {};\n    {}",
+                    "\n    let {} {}: {:?} = {}",
                     if *is_mut { "mut" } else { "" },
                     name,
                     type_annotation,
-                    e1,
-                    e2
+                    e,
                 );
             }
             Expression::Letrgn(regions, e) => {

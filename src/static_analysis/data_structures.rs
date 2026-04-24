@@ -368,7 +368,7 @@ impl Type {
                     items
                         .iter()
                         .zip(other_type.iter())
-                        .all(|tup| tup.0 == tup.1)
+                        .all(|tup| tup.0.eq_unchecked_regions(tup.1))
                 } else {
                     false
                 }

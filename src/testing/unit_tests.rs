@@ -99,6 +99,36 @@ pub(crate) fn tup2() -> Type {
 }
 
 #[fixture]
+pub(crate) fn tup2_inner_binding() -> Type {
+    Type {
+        binding: Some(Binding {
+            variable: "var2".to_string(),
+            is_mut: false,
+        }),
+        variant: TypeVariant::Tuple(vec![
+            get_u32(),
+            get_ref_to(
+                Box::new(Type {
+                    binding: Some(Binding {
+                        variable: "var2".to_string(),
+                        is_mut: false,
+                    }),
+                    variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
+                    is_sized: Ternary::Yes,
+                    is_dead: Ternary::No,
+                    copyable: false,
+                }),
+                OwnershipQualifier::Uniq,
+                "a".to_string(),
+            ),
+        ]),
+        is_sized: Ternary::Yes,
+        is_dead: Ternary::No,
+        copyable: false,
+    }
+}
+
+#[fixture]
 fn tup2_pe() -> PlaceExpression {
     (*oxidized::ExprParser::new().parse("(*var2.1).0").unwrap())
         .try_into()
@@ -158,7 +188,7 @@ pub(crate) fn concrete_env1() -> ConcreteTyping {
                 place_expression: tup2_pe(),
             },
         ]),
-        scope: 0
+        scope: 0,
     }));
     env = env.add_region(a);
     env = env.add_type(tup1());
@@ -279,4 +309,11 @@ fn overlaps(#[case] pe1: PlaceExpression, #[case] pe2: PlaceExpression, #[case] 
     }, {
         insta::assert_snapshot!(format!("{}", pe1.overlaps(&pe2)))
     });
+}
+
+
+#[rstest]
+#[case(tup2(), tup2_inner_binding())]
+fn not_equal(#[case] ty1: Type, #[case] ty2: Type) {
+    assert_eq!(ty1, ty2)
 }

@@ -101,3 +101,16 @@ pub(crate) fn unsafe_place() -> &'static str {
     }
     "
 }
+
+#[fixture]
+pub(crate) fn gc_test() -> &'static str {
+    "
+    letrgn<'x> {
+        let mut x: u32 = 5;
+        letrgn<'z> {
+            let y: &'x shrd u32 = &'x shrd x; ()
+        };
+        let z: &'x uniq u32 = &'x uniq x; ()
+    }
+    "
+}

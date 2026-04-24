@@ -7,6 +7,6 @@ ConcreteTyping {
 		'x -> { shared x }
 	]
  	𝜏: [
-		mut x := u32
+		(mut x := u32)†
 	]
  }

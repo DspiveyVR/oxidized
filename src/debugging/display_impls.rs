@@ -67,7 +67,15 @@ impl Display for Type {
             ),
         };
 
-        write!(f, "{}{}", binding_str, variant_str)
+        write!(
+            f,
+            "{}",
+            if self.is_dead == Ternary::Yes {
+                format!("({}{})†", binding_str, variant_str)
+            } else {
+                format!("{}{}", binding_str, variant_str)
+            }
+        )
     }
 }
 

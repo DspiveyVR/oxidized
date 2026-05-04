@@ -114,3 +114,49 @@ pub(crate) fn gc_test() -> &'static str {
     }
     "
 }
+
+#[fixture]
+pub(crate) fn move_ref() -> &'static str {
+    "
+    letrgn<'x,  'y> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: &'y uniq u32 = y; ()
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn move_ref_err() -> &'static str {
+    "
+    letrgn<'x,  'y, 'z> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: &'y uniq u32 = y;
+        let w: &'z uniq &'x uniq u32 = &'z uniq y; ()
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn copy_ref() -> &'static str {
+    "
+    letrgn<'x,  'y> {
+        let x: u32 = 5;
+        let y: &'x shrd u32 = &'x shrd x;
+        let z: &'y shrd u32 = y; ()
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn copy_ref_usage() -> &'static str {
+    "
+    letrgn<'x,  'y, 'z> {
+        let x: u32 = 5;
+        let y: &'x shrd u32 = &'x shrd x;
+        let z: &'y shrd u32 = y;
+        let w: &'z shrd &'x shrd u32 = &'z shrd y; ()
+    }
+    "
+}

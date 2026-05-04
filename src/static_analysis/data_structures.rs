@@ -103,6 +103,8 @@ pub(crate) enum OxidizedError {
     RegionNameConflict(String),
     #[error("Type {0} is dead")]
     UseOfMovedValue(Type),
+    #[error("Cannot move {0} out of ...")]
+    CannotMove(Type), // TODO: 2nd type will be parent
     #[error("Region {0} must outlive region {1}")]
     ConcreteOutlivesError(ConcreteRegion, ConcreteRegion),
     #[error("Cannot borrow with nonempty region '{0} containing loans: {1}")]
@@ -120,6 +122,10 @@ pub(crate) enum OxidizedError {
     },
     #[error("{0} is not a valid place expression")]
     InvalidPlaceExpression(Expression),
+    #[error("{0} is not a valid place")]
+    InvalidPlaceFromExp(Expression),
+    #[error("{0} is not a valid place")]
+    InvalidPlace(PlaceExpression),
     #[error("{0} was not found in the stack typing")]
     UseOfUndeclared(String),
     #[error("Expected {expected} found {found} ")]
@@ -153,19 +159,23 @@ impl TypeEnv for ConcreteTyping {
     }
 }
 
+pub(crate) struct TypeLookup {
+    pub(crate) found_type: Type,
+    pub(crate) parent_type: Type,
+}
 impl ConcreteTyping {
     pub(crate) fn type_lookup(
         &self,
         place_expression: PlaceExpression,
     ) -> Result<Type, OxidizedError> {
         let var = place_expression.get_inner_variable();
-        let found_type = self
+        let parent_type = self
             .types
             .0
             .iter()
             .find(|t| t.binding.clone().unwrap().variable == var);
-        if let Some(found_type) = found_type {
-            found_type.walk(place_expression)
+        if let Some(parent_type) = parent_type {
+            Ok(parent_type.walk(place_expression)?)
         } else {
             return Err(OxidizedError::UseOfUndeclared(var));
         }
@@ -194,6 +204,19 @@ impl ConcreteTyping {
             new_env
         }
     }
+
+    // pub(crate) fn set_type(&self, place: Place, t: Type) -> Result<Self, OxidizedError> {
+    //     let mut found_type = self.type_lookup(place.into())?;
+    //     let target_ref = &mut found_type.parent_type;
+    //     while target_ref != found_type.found_type {
+    //         match target_ref.variant {
+    //             TypeVariant::Reference(reference_type) => todo!(),
+    //             TypeVariant::Tuple(items) => todo!(),
+    //             TypeVariant::Base(base_type) => panic!("Unexpected error"), // I don't think this should be possible
+    //         }
+    //     }
+
+    // }
 
     pub(crate) fn get_region(&self, name: String) -> Result<ConcreteRegion, OxidizedError> {
         if let Some(region) = self.regions.0.clone().into_iter().find(|r| r.name == name) {
@@ -490,6 +513,14 @@ impl Type {
     }
 }
 
+impl TryFrom<Expression> for Place {
+    type Error = OxidizedError;
+
+    fn try_from(value: Expression) -> Result<Self, Self::Error> {
+        TryInto::<Place>::try_into(TryInto::<PlaceExpression>::try_into(value)?)
+    }
+}
+
 impl TryFrom<Expression> for PlaceExpression {
     type Error = OxidizedError;
 
@@ -510,10 +541,10 @@ impl TryFrom<Expression> for PlaceExpression {
 }
 
 impl TryFrom<PlaceExpression> for Place {
-    type Error = String;
+    type Error = OxidizedError;
 
     fn try_from(place_expression: PlaceExpression) -> Result<Self, Self::Error> {
-        match place_expression {
+        match place_expression.clone() {
             PlaceExpression::PathAccess(inner_pe, path) => {
                 if let PlaceExpression::Variable(variable) = *inner_pe {
                     Ok(Place {
@@ -521,14 +552,14 @@ impl TryFrom<PlaceExpression> for Place {
                         path: Some(path),
                     })
                 } else {
-                    Err("Not a valid place".to_string())
+                    Err(OxidizedError::InvalidPlace(place_expression))
                 }
             }
             PlaceExpression::Variable(variable) => Ok(Place {
                 variable,
                 path: None,
             }),
-            _ => Err("Not a valid place".to_string()),
+            _ => Err(OxidizedError::InvalidPlace(place_expression)),
         }
     }
 }

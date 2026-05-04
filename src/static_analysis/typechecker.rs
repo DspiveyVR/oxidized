@@ -39,14 +39,14 @@ impl Expression {
                 &Expression::Constant(Constant::Unit),
             )), // If a let is by itself not sequenced then its basically just dead.
             Expression::Ref(..) => err_if_dead(self.t_borrow(stack_typing, continuation_typing)),
-            Expression::Variable(var) => err_if_dead(Ok((
-                stack_typing.clone(),
-                stack_typing.type_lookup(PlaceExpression::Variable(var.to_string()))?,
-            ))),
-            // FIXME: For now constants will be treated as noncopyable. once copy logic is implemented this branch should not call err_if_dead.
-            Expression::Constant(c) => {
-                err_if_dead(Ok((stack_typing.clone(), Self::t_constant(c)?)))
+            Expression::Variable(_) | Expression::PathAccess(..) | Expression::Deref(_) => {
+                Self::t_place_expression(
+                    TryInto::<PlaceExpression>::try_into(self.clone()).expect("Unexpected error"),
+                    stack_typing,
+                    continuation_typing,
+                )
             }
+            Expression::Constant(c) => Ok((stack_typing.clone(), Self::t_constant(c)?)),
             _ => panic!("Unexpected error"),
         }
     }
@@ -65,6 +65,7 @@ impl Expression {
         Ok((new_stack_typing, tc_result?.1))
     }
 
+    // Typing
     fn t_constant(constant: &Constant) -> Result<Type, OxidizedError> {
         match constant {
             crate::ast::Constant::Unit => Ok(Type {
@@ -84,7 +85,70 @@ impl Expression {
         }
     }
 
-    // Typing
+    fn t_place_expression(
+        place_expression: PlaceExpression,
+        stack_typing: ConcreteTyping,
+        continuation_typing: ConcreteTyping,
+    ) -> Result<(ConcreteTyping, Type), OxidizedError> {
+        let found_type = stack_typing.type_lookup(place_expression.clone())?;
+        if found_type.is_dead != Ternary::No {
+            return Err(OxidizedError::UseOfMovedValue(found_type));
+        }
+        if found_type.copyable() {
+            return Self::t_copy(
+                place_expression.try_into().unwrap(),
+                stack_typing,
+                continuation_typing,
+            ); // FIXME: unwrap is temporary
+        } else {
+            if let Ok(place) = place_expression.try_into() {
+                return Self::t_move(place, found_type, stack_typing, continuation_typing);
+            } else {
+                return Err(OxidizedError::CannotMove(found_type));
+            }
+        }
+    }
+
+    fn t_move(
+        place: Place,
+        found_type: Type,
+        mut stack_typing: ConcreteTyping,
+        continuation_typing: ConcreteTyping,
+    ) -> Result<(ConcreteTyping, Type), OxidizedError> {
+        let _ = stack_typing.o_safe_place(
+            continuation_typing,
+            place.clone(),
+            OwnershipQualifier::Uniq,
+        )?;
+        let mut return_type = found_type.clone();
+        return_type.binding = None;
+        let mut dead_type = found_type.clone();
+        dead_type.is_dead = Ternary::Yes;
+        stack_typing = stack_typing.set_type(found_type, dead_type);
+
+        Ok((stack_typing, return_type))
+    }
+
+    fn t_copy(
+        place_expression: PlaceExpression,
+        stack_typing: ConcreteTyping,
+        continuation_typing: ConcreteTyping,
+    ) -> Result<(ConcreteTyping, Type), OxidizedError> {
+        let _ = stack_typing.ownership_check(
+            continuation_typing,
+            place_expression.clone(),
+            OwnershipQualifier::Shrd,
+        )?;
+        let found_type = stack_typing.type_lookup(place_expression)?;
+        if found_type.is_dead != Ternary::No {
+            return Err(OxidizedError::UseOfMovedValue(found_type));
+        }
+        let mut return_type = found_type.clone();
+        return_type.binding = None;
+
+        Ok((stack_typing, return_type))
+    }
+
     fn t_borrow(
         &self,
         stack_typing: ConcreteTyping,
@@ -102,7 +166,7 @@ impl Expression {
 
             let place_expression: PlaceExpression = (**e).clone().try_into()?;
 
-            let loans = stack_typing.borrow_check(
+            let loans = stack_typing.ownership_check(
                 continuation_typing,
                 place_expression.clone(),
                 ref_annotation.1,
@@ -226,7 +290,7 @@ impl Expression {
 // TODO: well-formedness rules
 impl ConcreteTyping {
     // Ownership Safety
-    fn borrow_check(
+    fn ownership_check(
         &self,
         continuation_typing: Self,
         place_expression: PlaceExpression,
@@ -312,9 +376,12 @@ impl ConcreteTyping {
     }
 
     // TODO: closure restriction rule
-    fn ol_combine_concrete(&self, region1: ConcreteRegion, region2: ConcreteRegion) -> Result<Self, OxidizedError> {
-        if !(self.rnrb(region1.clone()) && self.rnrb(region2.clone()))
-        {
+    fn ol_combine_concrete(
+        &self,
+        region1: ConcreteRegion,
+        region2: ConcreteRegion,
+    ) -> Result<Self, OxidizedError> {
+        if !(self.rnrb(region1.clone()) && self.rnrb(region2.clone())) {
             return Err(OxidizedError::ConcreteOutlivesError(
                 region1.clone(),
                 region2.clone(),
@@ -326,7 +393,6 @@ impl ConcreteTyping {
             .iter()
             .find(|r| r.name == region1.name)
             .unwrap()
-            
             .scope
             <= self
                 .regions
@@ -334,7 +400,6 @@ impl ConcreteTyping {
                 .iter()
                 .find(|r| r.name == region2.name)
                 .unwrap()
-                
                 .scope)
         {
             return Err(OxidizedError::ConcreteOutlivesError(
@@ -342,10 +407,7 @@ impl ConcreteTyping {
                 region2.clone(),
             ));
         }
-        let new_loans = region1
-            
-            .loans
-            .union(region2.clone().loans);
+        let new_loans = region1.loans.union(region2.clone().loans);
         let mut new_r2 = region2.clone();
         new_r2.loans = new_loans;
 

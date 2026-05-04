@@ -39,4 +39,11 @@ fn main() {
             println!("ERROR: {}", err);
         }
     };
+
+    // let mut a = 5;
+    // let mut f = &mut a;
+    // let b = &mut f;
+    // // *b;
+    // f;
+    // b;
 }

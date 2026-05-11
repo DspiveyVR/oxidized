@@ -13,6 +13,9 @@ there's a little more to the regions() metafunction than just accessing the regi
 in the cont typing.  probably can forget about it for now.
 
 
+step debugging:
+    could each tc function return an object containing closures with the tc body inside in multiple parts as well as the type environment?
+
 */
 
 use super::auxiliary::*;
@@ -20,6 +23,129 @@ use super::data_structures::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
+
+enum TCReturn {
+    TCResult(TCResult),
+    TCState(TCState),
+}
+type TCReturnResult = Result<TCReturn, OxidizedError>;
+type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
+type TCFn = Box<
+    dyn Fn(
+        Option<Expression>,
+        Option<Type>,
+        Option<ConcreteTyping>,
+        Option<ConcreteTyping>,
+    ) -> TCReturnResult,
+>;
+
+struct TCStateMachine {
+    states: Vec<TCState>,
+    results: Vec<TCResult>,
+}
+
+struct TCState {
+    e1_fn: Option<TCFn>,
+    e2_fn: Option<TCFn>,
+    current_state: (ConcreteTyping, ConcreteTyping),
+}
+
+impl TCStateMachine {
+    fn step_over(&mut self) -> Result<(), OxidizedError> {
+        let top = self.states.pop().unwrap();
+        let e1_result: TCResult;
+
+        if let Some(e1_fn) = top.e1_fn {
+            let fn_return = e1_fn(None, None, None, None)?;
+            match fn_return {
+                TCReturn::TCResult(result) => {
+                    e1_result = result;
+                }
+                TCReturn::TCState(state) => {
+                    e1_result = state.evaluate();
+                }
+            };
+        } else {
+            e1_result = self.results.pop().unwrap();
+        }
+
+        let unwrapped_result = e1_result?;
+        let e2_result = top.e2_fn.unwrap()(
+            None,
+            Some(unwrapped_result.1),
+            Some(unwrapped_result.0),
+            None,
+        )?;
+
+        match e2_result {
+            TCReturn::TCResult(result) => Ok(self.results.push(result)),
+            TCReturn::TCState(state) => Ok(self.states.push(state)),
+        }
+    }
+
+    fn step_into(&mut self) -> Result<(), OxidizedError> {
+        let top = self.states.pop().unwrap();
+        let return_result = top.step_into()?;
+        match return_result {
+            TCReturn::TCResult(result) => Ok(self.results.push(result)),
+            TCReturn::TCState(state) => Ok(self.states.push(state)),
+        }
+    }
+
+    fn evaluate(&mut self) -> TCResult {
+        let top = self.states.pop().unwrap();
+        if let Some(_) = top.e2_fn {
+            let states_len = self.states.len();
+            self.step_over()?;
+            if (self.states.len() != states_len) {
+                self.states.pop().unwrap().evaluate()
+            } else {
+                self.results.pop().unwrap()
+            }
+        } else {
+            match top.step_into()? {
+                TCReturn::TCResult(result) => result,
+                TCReturn::TCState(state) => state.evaluate(),
+            }
+        }
+    }
+
+    fn new(state: TCState) -> Self {
+        Self {
+            states: vec![state],
+            results: Vec::new(),
+        }
+    }
+
+    fn get_state(&self) -> (ConcreteTyping, ConcreteTyping) {
+        self.states.iter().last().unwrap().current_state.clone()
+    }
+
+    fn get_result(&self) -> TCResult {
+        self.results.iter().last().unwrap().clone()
+    }
+}
+
+impl TCState {
+    fn step_into(mut self) -> TCReturnResult {
+        let e1_fn: TCFn = self.e1_fn.unwrap(); // FIXME: unwrap
+        self.e1_fn = None;
+        e1_fn(None, None, None, None)
+    }
+
+    fn evaluate(self) -> TCResult {
+        let mut state_machine = TCStateMachine::new(self);
+        state_machine.evaluate()
+    }
+
+    fn new() -> Self {
+        Self {
+            e1_fn: None,
+            e2_fn: None,
+            current_state: (ConcreteTyping::new(), ConcreteTyping::new()),
+        }
+    }
+}
 
 impl Expression {
     pub(crate) fn typecheck(

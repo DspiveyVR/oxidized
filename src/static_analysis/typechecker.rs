@@ -24,20 +24,25 @@ use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
 
+/*
+
+okay i think this actually does need to be polymorphic
+
+t_let will need its own type to handle the 3rd part where it kills the type.  I think the bound type will need to be stored in
+the struct and then there needs to be an e3_fn as well that is called by step_over. 
+maybe these structs need to also contain an enum representing which type they are. idk if this helps
+
+*/
+
+
 enum TCReturn {
     TCResult(TCResult),
     TCState(TCState),
 }
 type TCReturnResult = Result<TCReturn, OxidizedError>;
 type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
-type TCFn = Box<
-    dyn Fn(
-        Option<Expression>,
-        Option<Type>,
-        Option<ConcreteTyping>,
-        Option<ConcreteTyping>,
-    ) -> TCReturnResult,
->;
+type TCFn =
+    Box<dyn Fn(Option<Type>, Option<ConcreteTyping>, Option<ConcreteTyping>) -> TCReturnResult>;
 
 struct TCStateMachine {
     states: Vec<TCState>,
@@ -56,7 +61,7 @@ impl TCStateMachine {
         let e1_result: TCResult;
 
         if let Some(e1_fn) = top.e1_fn {
-            let fn_return = e1_fn(None, None, None, None)?;
+            let fn_return = e1_fn(None, None, None)?;
             match fn_return {
                 TCReturn::TCResult(result) => {
                     e1_result = result;
@@ -70,12 +75,9 @@ impl TCStateMachine {
         }
 
         let unwrapped_result = e1_result?;
-        let e2_result = top.e2_fn.unwrap()(
-            None,
-            Some(unwrapped_result.1),
-            Some(unwrapped_result.0),
-            None,
-        )?;
+        // TODO: probably should modify current state to represent the state at e2.
+        let e2_result =
+            top.e2_fn.unwrap()(Some(unwrapped_result.1), Some(unwrapped_result.0), None)?;
 
         match e2_result {
             TCReturn::TCResult(result) => Ok(self.results.push(result)),
@@ -130,7 +132,7 @@ impl TCState {
     fn step_into(mut self) -> TCReturnResult {
         let e1_fn: TCFn = self.e1_fn.unwrap(); // FIXME: unwrap
         self.e1_fn = None;
-        e1_fn(None, None, None, None)
+        e1_fn(None, None, None)
     }
 
     fn evaluate(self) -> TCResult {

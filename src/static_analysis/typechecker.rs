@@ -34,27 +34,28 @@ maybe these structs need to also contain an enum representing which type they ar
 
 */
 
-enum TCReturn<'a> {
+enum TCReturn {
     TCResult(TCResult),
-    TCState(Box<dyn TCState + 'a>),
+    TCState(Box<dyn TCState>),
 }
-type TCReturnResult<'a> = Result<(Option<Box<dyn TCState>>, TCReturn<'a>), OxidizedError>;
+type TCReturnResult = Result<(Option<Box<dyn TCState>>, TCReturn), OxidizedError>;
 type TCEvalResult = Result<(Box<dyn TCState>, TCResult), OxidizedError>;
 type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
 // FIXME: For now i'll ignore the continuation typing
-type TCFn<'a> = Box<dyn Fn() -> TCReturnResult<'a>>;
-type TCConsumerFn<'a> = Box<dyn Fn(ConcreteTyping) -> TCReturnResult<'a>>;
-type TC2ConsumerFn<'a> = Box<dyn Fn(ConcreteTyping, Type) -> TCReturnResult<'a>>;
-type TC3ConsumerFn<'a> = Box<dyn Fn(ConcreteTyping, Type, Type) -> TCReturnResult<'a>>;
+type TCFn = dyn FnOnce() -> TCReturnResult;
+type TCConsumerFn = dyn FnOnce(ConcreteTyping) -> TCReturnResult;
+type TCPopVarsFn = dyn FnOnce(TCResult) -> TCReturnResult;
+type TC2ConsumerFn = dyn FnOnce(ConcreteTyping, Type) -> TCReturnResult;
+type TC3ConsumerFn = dyn FnOnce(ConcreteTyping, Type, Type) -> TCReturnResult;
 
 struct TCStateMachine {
     states: Vec<Box<dyn TCState>>,
 }
 
 trait TCState {
-    fn step_into<'a>(self: Box<Self>) -> TCReturnResult<'a>;
+    fn step_into(self: Box<Self>) -> TCReturnResult;
 
-    fn step_over<'a>(self: Box<Self>) -> TCReturnResult<'a>;
+    fn step_over(self: Box<Self>) -> TCReturnResult;
 
     fn evaluate(self: Box<Self>) -> TCEvalResult;
 
@@ -68,25 +69,32 @@ trait TCState {
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping);
 }
 
-struct TNonSeqState<'a> {
-    e_fn: TCFn<'a>,
+struct TExprState {
+    e_fn: Box<TCFn>,
     env_state: (ConcreteTyping, ConcreteTyping),
     is_complete: bool,
 }
 
-struct TSeqState<'a> {
-    e1_fn: TCFn<'a>,
-    e2_fn: TCConsumerFn<'a>,
+struct TLetrgnState {
+    e_fn: Box<TCFn>,
+    pop_vars_fn: Box<TCPopVarsFn>,
+    env_state: (ConcreteTyping, ConcreteTyping),
+    is_complete: bool,
+}
+
+struct TSeqState {
+    e1_fn: Box<TCFn>,
+    e2_fn: Box<TCConsumerFn>,
     env_state: (ConcreteTyping, ConcreteTyping),
     e1_result: Option<TCResult>,
     is_complete: bool,
 }
 
-struct TLetState<'a> {
-    e1_fn: TCFn<'a>,
-    binding_fn: TC2ConsumerFn<'a>,
-    e2_fn: TCConsumerFn<'a>,
-    gc_fn: TC3ConsumerFn<'a>,
+struct TLetState {
+    e1_fn: Box<TCFn>,
+    binding_fn: Box<TC2ConsumerFn>,
+    e2_fn: Box<TCConsumerFn>,
+    gc_fn: Box<TC3ConsumerFn>,
     env_state: (ConcreteTyping, ConcreteTyping),
     bound_type: Option<Type>,
     e1_result: Option<TCResult>,
@@ -95,8 +103,8 @@ struct TLetState<'a> {
     is_complete: bool,
 }
 
-impl<'a> TCState for TNonSeqState<'a> {
-    fn step_into(mut self: Box<Self>) -> TCReturnResult<'a> {
+impl TCState for TExprState {
+    fn step_into(mut self: Box<Self>) -> TCReturnResult {
         let e_return_result = (self.e_fn)();
         if let Ok((_, TCReturn::TCResult(_))) = e_return_result {
             self.is_complete = true;
@@ -104,7 +112,7 @@ impl<'a> TCState for TNonSeqState<'a> {
         e_return_result
     }
 
-    fn step_over(self: Box<Self>) -> TCReturnResult<'a> {
+    fn step_over(self: Box<Self>) -> TCReturnResult {
         self.step_into()
     }
 
@@ -112,7 +120,7 @@ impl<'a> TCState for TNonSeqState<'a> {
         self.is_complete = true;
         let e_return = (self.e_fn)()?;
         match e_return {
-            (_, TCReturn::TCResult(result)) => Ok((self, result)),
+            (self_return, TCReturn::TCResult(result)) => Ok((self_return.unwrap(), result)),
             (_, TCReturn::TCState(state)) => state.evaluate(),
         }
     }
@@ -120,7 +128,7 @@ impl<'a> TCState for TNonSeqState<'a> {
     fn handle_result(
         self: Box<Self>,
         _: TCResult,
-    ) -> Result<(Box<dyn TCState + 'a>, Option<Box<dyn TCState + 'a>>), OxidizedError> {
+    ) -> Result<(Box<dyn TCState>, Option<Box<dyn TCState>>), OxidizedError> {
         Ok((self, None))
     }
 
@@ -133,12 +141,15 @@ impl<'a> TCState for TNonSeqState<'a> {
     }
 }
 
-impl<'a> TNonSeqState<'a> {
-    fn new_obj(e_fn: TCFn<'a>, env_state: (ConcreteTyping, ConcreteTyping)) -> TCReturnResult {
+impl TExprState {
+    fn new_obj<TCFn: FnOnce() -> TCReturnResult + 'static>(
+        e_fn: TCFn,
+        env_state: (ConcreteTyping, ConcreteTyping),
+    ) -> TCReturnResult {
         Ok((
             None,
             TCReturn::TCState(Box::new(Self {
-                e_fn,
+                e_fn: Box::new(e_fn),
                 env_state,
                 is_complete: false,
             })),
@@ -146,8 +157,8 @@ impl<'a> TNonSeqState<'a> {
     }
 }
 
-impl<'a> TCState for TSeqState<'a> {
-    fn step_into(mut self: Box<Self>) -> TCReturnResult<'a> {
+impl TCState for TSeqState {
+    fn step_into(mut self: Box<Self>) -> TCReturnResult {
         let e1_result = (self.e1_fn)();
         if let Ok((_, TCReturn::TCResult(_))) = e1_result {
             self.is_complete = true;
@@ -163,11 +174,13 @@ impl<'a> TCState for TSeqState<'a> {
             (_, TCReturn::TCResult(result)) => {
                 let e2_return = (self.e2_fn)(result?.0)?;
                 match e2_return {
-                    (_, TCReturn::TCResult(result)) => Ok((self, result)),
+                    (self_return, TCReturn::TCResult(result)) => Ok((self_return.unwrap(), result)),
                     (_, TCReturn::TCState(state)) => state.evaluate(),
                 }
             }
-            (_, TCReturn::TCState(state)) => Ok((self, state.evaluate()?.1)),
+            (self_return, TCReturn::TCState(state)) => {
+                Ok((self_return.unwrap(), state.evaluate()?.1))
+            }
         }
     }
 
@@ -219,7 +232,10 @@ impl<'a> TCState for TSeqState<'a> {
 }
 
 impl TSeqState {
-    fn new_obj(
+    fn new_obj<
+        TCFn: FnOnce() -> TCReturnResult + 'static,
+        TCConsumerFn: FnOnce(ConcreteTyping) -> TCReturnResult + 'static,
+    >(
         e1_fn: TCFn,
         e2_fn: TCConsumerFn,
         env_state: (ConcreteTyping, ConcreteTyping),
@@ -227,8 +243,8 @@ impl TSeqState {
         Ok((
             None,
             TCReturn::TCState(Box::new(Self {
-                e1_fn,
-                e2_fn,
+                e1_fn: Box::new(e1_fn),
+                e2_fn: Box::new(e2_fn),
                 env_state,
                 is_complete: false,
                 e1_result: None,
@@ -255,11 +271,13 @@ impl TCState for TLetState {
             (_, TCReturn::TCResult(result)) => {
                 let e2_return = (self.e2_fn)(result?.0)?;
                 match e2_return {
-                    (_, TCReturn::TCResult(result)) => Ok((self, result)),
+                    (self_return, TCReturn::TCResult(result)) => Ok((self_return.unwrap(), result)),
                     (_, TCReturn::TCState(state)) => state.evaluate(),
                 }
             }
-            (_, TCReturn::TCState(state)) => Ok((self, state.evaluate()?.1)),
+            (self_return, TCReturn::TCState(state)) => {
+                Ok((self_return.unwrap(), state.evaluate()?.1))
+            }
         }
     }
 
@@ -341,8 +359,8 @@ impl TCState for TLetState {
             let binding_result_val = binding_result?;
 
             match (self.gc_fn)(result_val.0, binding_result_val.1, result_val.1)? {
-                (_, TCReturn::TCResult(_)) => Ok((self, None)),
-                (_, TCReturn::TCState(state)) => Ok((self, Some(state))),
+                (self_return, TCReturn::TCResult(_)) => Ok((self_return.unwrap(), None)),
+                (self_return, TCReturn::TCState(state)) => Ok((self_return.unwrap(), Some(state))),
             }
         } else if let Some(_) = self.e1_result {
             self.binding_result = Some(result.clone());
@@ -352,15 +370,20 @@ impl TCState for TLetState {
             let result_val = err_if_dead(result)?;
 
             match (self.binding_fn)(result_val.0, result_val.1)? {
-                (_, TCReturn::TCResult(_)) => Ok((self, None)),
-                (_, TCReturn::TCState(state)) => Ok((self, Some(state))),
+                (self_return, TCReturn::TCResult(_)) => Ok((self_return.unwrap(), None)),
+                (self_return, TCReturn::TCState(state)) => Ok((self_return.unwrap(), Some(state))),
             }
         }
     }
 }
 
 impl TLetState {
-    fn new_obj(
+    fn new_obj<
+        TCFn: FnOnce() -> TCReturnResult + 'static,
+        TCConsumerFn: FnOnce(ConcreteTyping) -> TCReturnResult + 'static,
+        TC2ConsumerFn: FnOnce(ConcreteTyping, Type) -> TCReturnResult + 'static,
+        TC3ConsumerFn: FnOnce(ConcreteTyping, Type, Type) -> TCReturnResult + 'static,
+    >(
         e1_fn: TCFn,
         binding_fn: TC2ConsumerFn,
         e2_fn: TCConsumerFn,
@@ -370,10 +393,10 @@ impl TLetState {
         Ok((
             None,
             TCReturn::TCState(Box::new(Self {
-                e1_fn,
-                binding_fn,
-                e2_fn,
-                gc_fn,
+                e1_fn: Box::new(e1_fn),
+                binding_fn: Box::new(binding_fn),
+                e2_fn: Box::new(e2_fn),
+                gc_fn: Box::new(gc_fn),
                 env_state,
                 is_complete: false,
                 e1_result: None,
@@ -453,7 +476,7 @@ impl TCStateMachine {
 
 impl Expression {
     pub(crate) fn typecheck(
-        &self,
+        self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
     ) -> TCReturnResult {
@@ -466,7 +489,7 @@ impl Expression {
             Expression::Let { .. } => self.t_let(
                 stack_typing,
                 continuation_typing,
-                &Expression::Constant(Constant::Unit),
+                Expression::Constant(Constant::Unit),
             ), // If a let is by itself not sequenced then its basically just dead.
             Expression::Ref(..) => self.t_borrow(stack_typing, continuation_typing),
             Expression::Variable(_) | Expression::PathAccess(..) | Expression::Deref(_) => {
@@ -481,18 +504,24 @@ impl Expression {
         }
     }
 
-    fn pop_vars(
-        stack_typing: ConcreteTyping,
-        tc_result: Result<(ConcreteTyping, Type), OxidizedError>,
-    ) -> Result<(ConcreteTyping, Type), OxidizedError> {
-        let new_stack_typing = ConcreteTyping {
-            regions: VecSet(
-                (tc_result.clone()?.0.regions.0[..stack_typing.regions.0.len()]).to_vec(),
-            ),
-            types: VecSet((tc_result.clone()?.0.types.0[..stack_typing.types.0.len()]).to_vec()),
-        };
+    fn pop_vars(stack_typing: ConcreteTyping, tc_result: TCReturnResult) -> TCReturnResult {
+        let st_clone = stack_typing.clone();
+        TExprState::new_obj(
+            move || {
+                let stack_typing = st_clone;
+                let new_stack_typing = ConcreteTyping {
+                    regions: VecSet(
+                        (tc_result.clone()?.0.regions.0[..stack_typing.regions.0.len()]).to_vec(),
+                    ),
+                    types: VecSet(
+                        (tc_result.clone()?.0.types.0[..stack_typing.types.0.len()]).to_vec(),
+                    ),
+                };
 
-        Ok((new_stack_typing, tc_result?.1))
+                Ok((new_stack_typing, tc_result?.1))
+            },
+            (stack_typing.clone(), ConcreteTyping::new()),
+        )
     }
 
     // Typing
@@ -627,43 +656,54 @@ impl Expression {
     }
 
     pub(crate) fn t_letrgn(
-        &self,
+        self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> Result<(ConcreteTyping, Type), OxidizedError> {
-        if let Expression::Letrgn(region_names, inner_exp) = self {
-            stack_typing.check_conflicting_region_names(region_names)?;
-            let scope = if let Some(region) = stack_typing.regions.0.last() {
-                region.scope + 1
-            } else {
-                0
-            };
+    ) -> TCReturnResult {
+        let st_clone = stack_typing.clone();
+        let cont_clone = continuation_typing.clone();
+        TExprState::new_obj(
+            move || {
+                let stack_typing = st_clone;
+                if let Expression::Letrgn(region_names, inner_exp) = self {
+                    stack_typing.check_conflicting_region_names(&region_names)?;
+                    let scope = if let Some(region) = stack_typing.regions.0.last() {
+                        region.scope + 1
+                    } else {
+                        0
+                    };
 
-            let local_types = ConcreteTyping::new_with_regions(region_names, scope);
-            inner_exp.typecheck(stack_typing.union(local_types), continuation_typing)
-        } else {
-            panic!("Unexpected error");
-        }
+                    let local_types = ConcreteTyping::new_with_regions(&region_names, scope);
+                    inner_exp.typecheck(stack_typing.union(local_types), cont_clone)
+                } else {
+                    panic!("Unexpected error");
+                }
+            },
+            (stack_typing.clone(), continuation_typing.clone()),
+        )
     }
 
     fn t_seq(
-        &self,
+        self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
     ) -> TCReturnResult {
         if let Expression::Sequence(e1, e2) = self {
-            if let Expression::Let { .. } = &**e1 {
-                e1.t_let(stack_typing, continuation_typing, e2)
+            if let Expression::Let { .. } = *e1 {
+                e1.t_let(stack_typing, continuation_typing, *e2)
             } else {
+                let st_clone = stack_typing.clone();
+                let cont_clone = continuation_typing.clone();
+                let cont_clone2 = continuation_typing.clone();
                 TSeqState::new_obj(
-                    Box::new(|| e1.typecheck(stack_typing.clone(), continuation_typing.clone())),
-                    Box::new(|gamma1: ConcreteTyping| {
+                    move || e1.typecheck(st_clone, cont_clone),
+                    move |gamma1: ConcreteTyping| {
                         e2.typecheck(
                             gamma1.gc_loans(continuation_typing.clone()),
                             continuation_typing.clone(),
                         )
-                    }),
-                    (stack_typing.clone(), continuation_typing.clone()),
+                    },
+                    (stack_typing.clone(), cont_clone2),
                 )
             }
         } else {
@@ -672,10 +712,10 @@ impl Expression {
     }
 
     fn t_let(
-        &self,
+        self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-        e2: &Expression,
+        e2: Expression,
     ) -> TCReturnResult {
         if let Expression::Let {
             name,
@@ -684,9 +724,12 @@ impl Expression {
             e: e1,
         } = self
         {
+            let st_clone = stack_typing.clone();
+            let cont_clone = continuation_typing.clone();
+            let cont_clone2 = continuation_typing.clone();
             TLetState::new_obj(
-                || e1.typecheck(stack_typing, continuation_typing.clone()),
-                |gamma1: ConcreteTyping, return_type: Type| {
+                move || e1.typecheck(st_clone, cont_clone),
+                move |gamma1: ConcreteTyping, return_type: Type| {
                     let annotated_type: Type = type_annotation.clone().into();
                     if !return_type.eq_unchecked_regions(&annotated_type) {
                         return Err(OxidizedError::MismatchedTypes {
@@ -698,7 +741,7 @@ impl Expression {
                     let mut bound_type = annotated_type;
                     bound_type.binding = Some(Binding {
                         variable: name.to_string(),
-                        is_mut: *is_mut,
+                        is_mut,
                     });
                     let mut gamma1_modified = gamma1.add_type(bound_type.clone());
                     gamma1_modified = gamma1_modified.rewrite_regions(
@@ -707,22 +750,22 @@ impl Expression {
                         RegionRewriteMode::Plus,
                     )?;
 
-                    Ok(TCReturn::TCResult(Ok((gamma1_modified, bound_type))))
+                    Ok((None, TCReturn::TCResult(Ok((gamma1_modified, bound_type)))))
                 },
                 |gamma1_modified: ConcreteTyping| {
-                    e2.typecheck(
-                        gamma1_modified.gc_loans(continuation_typing.clone()),
-                        continuation_typing,
-                    )
+                    e2.typecheck(gamma1_modified.gc_loans(cont_clone2.clone()), cont_clone2)
                 },
-                |gamma2, bound_type| {
+                |gamma2: ConcreteTyping, return_type2: Type, bound_type: Type| {
                     let mut dead_bound_type = bound_type.clone();
                     dead_bound_type.is_dead = Ternary::Yes;
 
-                    Ok(TCReturn::TCResult(Ok(Ok((
-                        gamma2.set_type(bound_type, dead_bound_type),
-                        return_type2,
-                    )))))
+                    Ok((
+                        None,
+                        TCReturn::TCResult(Ok((
+                            gamma2.set_type(bound_type, dead_bound_type),
+                            return_type2,
+                        ))),
+                    ))
                 },
                 (stack_typing.clone(), continuation_typing.clone()),
             )

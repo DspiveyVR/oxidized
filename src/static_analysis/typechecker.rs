@@ -24,25 +24,15 @@ use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
 
-/*
-
-okay i think this actually does need to be polymorphic
-
-t_let will need its own type to handle the 3rd part where it kills the type.  I think the bound type will need to be stored in
-the struct and then there needs to be an e3_fn as well that is called by step_over.
-maybe these structs need to also contain an enum representing which type they are. idk if this helps
-
-*/
-
 // FIXME: figure out where to put err_if_dead calls
 
-enum TCReturn {
+pub(crate) enum TCReturn {
     TCResult(TCResult),
     TCState(Box<dyn TCState>),
 }
-type TCReturnResult = Result<(Option<Box<dyn TCState>>, TCReturn), OxidizedError>;
-type TCEvalResult = Result<(Box<dyn TCState>, TCResult), OxidizedError>;
-type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
+pub(crate)type TCReturnResult = Result<(Option<Box<dyn TCState>>, TCReturn), OxidizedError>;
+pub(crate) type TCEvalResult = Result<(Box<dyn TCState>, TCResult), OxidizedError>;
+pub(crate) type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
 // FIXME: For now i'll ignore the continuation typing
 type TCFn = dyn FnOnce() -> TCReturnResult;
 type TCConsumerFn = dyn FnOnce(ConcreteTyping) -> TCReturnResult;
@@ -50,11 +40,11 @@ type TCPopVarsFn = dyn FnOnce(TCResult) -> TCReturnResult;
 type TC2ConsumerFn = dyn FnOnce(ConcreteTyping, Type) -> TCReturnResult;
 type TC3ConsumerFn = dyn FnOnce(ConcreteTyping, Type, Type) -> TCReturnResult;
 
-struct TCStateMachine {
-    states: Vec<Box<dyn TCState>>,
+pub(crate) struct TCStateMachine {
+    pub(crate) states: Vec<Box<dyn TCState>>,
 }
 
-trait TCState {
+pub(crate) trait TCState {
     fn step_into(self: Box<Self>) -> TCReturnResult;
 
     fn step_over(self: Box<Self>) -> TCReturnResult;
@@ -483,13 +473,17 @@ impl TLetState {
 }
 
 impl TCStateMachine {
-    fn new(state: Box<dyn TCState>) -> Self {
+    pub(crate) fn new(state: Box<dyn TCState>) -> Self {
         Self {
             states: vec![state],
         }
     }
 
-    fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
+    pub(crate) fn evaluate(state: Box<dyn TCState>) -> TCResult {
+        state.evaluate()?.1
+    }
+
+    pub(crate) fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         if let Some(state) = self.states.last() {
             state.get_env_state()
         } else {
@@ -497,7 +491,7 @@ impl TCStateMachine {
         }
     }
 
-    fn step_into(&mut self) -> Result<(), OxidizedError> {
+    pub(crate) fn step_into(&mut self) -> Result<(), OxidizedError> {
         let top = self.states.pop().unwrap();
         let return_result = top.step_into()?;
         match return_result {
@@ -537,7 +531,7 @@ impl TCStateMachine {
         }
     }
 
-    fn step_over(&mut self) -> Result<(), OxidizedError> {
+    pub(crate) fn step_over(&mut self) -> Result<(), OxidizedError> {
         let top = self.states.pop().unwrap();
         let return_result = top.step_over()?;
         match return_result {

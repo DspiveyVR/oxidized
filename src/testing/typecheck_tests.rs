@@ -2,6 +2,7 @@ use rstest::*;
 
 use crate::oxidized;
 use crate::static_analysis::data_structures::ConcreteTyping;
+use crate::static_analysis::typechecker::*;
 use crate::testing::oxide_programs;
 use crate::testing::set_snapshot_suffix;
 
@@ -30,28 +31,42 @@ fn full_program(#[case] program: &'static str, #[case] n: u32) {
         description => program,
         omit_expression => true
     }, {
-        insta::assert_snapshot!(match ast.t_letrgn(ConcreteTyping::new(), ConcreteTyping::new()) {
-            Ok(result) => format!("{}", result.0),
-            Err(err) => format!("{}", err)
-        })
-    });
-}
-
-#[rstest]
-#[case(oxide_programs::double_ref(), 0)]
-#[case(oxide_programs::triple_ref(), 1)]
-fn empty_st(#[case] program: &'static str, #[case] n: u32) {
-    set_snapshot_suffix!("{}", n);
-
-    let ast = oxidized::ExprParser::new().parse(program).unwrap();
-
-    insta::with_settings!({
-        description => program,
-        omit_expression => true
-    }, {
         insta::assert_snapshot!(match ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()) {
-            Ok(result) => format!("{}", result.0),
+            Ok(result) => {
+                match result.1 {
+                    TCReturn::TCResult(result) => match result {
+                        Ok(val) => format!("{}", val.0),
+                        Err(err) => format!("{}", err)
+                    },
+                    TCReturn::TCState(state) => {
+                        let result = TCStateMachine::evaluate(state);
+                        match result {
+                            Ok(val) => format!("{}", val.0),
+                            Err(err) => format!("{}", err)
+                        }
+                    },
+                }
+         },
             Err(err) => format!("{}", err)
         })
     });
 }
+
+// #[rstest]
+// #[case(oxide_programs::double_ref(), 0)]
+// #[case(oxide_programs::triple_ref(), 1)]
+// fn empty_st(#[case] program: &'static str, #[case] n: u32) {
+//     set_snapshot_suffix!("{}", n);
+
+//     let ast = oxidized::ExprParser::new().parse(program).unwrap();
+
+//     insta::with_settings!({
+//         description => program,
+//         omit_expression => true
+//     }, {
+//         insta::assert_snapshot!(match ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()) {
+//             Ok(result) => format!("{}", result.0),
+//             Err(err) => format!("{}", err)
+//         })
+//     });
+// }

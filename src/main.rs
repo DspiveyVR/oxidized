@@ -14,8 +14,7 @@ fn main() {
     let program = "
     letrgn<'x, 'y> {
         let mut x: u32 = 5;
-        let y: &'x uniq u32 = &'x uniq x; 
-        let z: &'y uniq &'x uniq u32 = &'y uniq y; ()
+        let y: &'x uniq u32 = &'x uniq x
     }
     ";
     let ast = oxidized::ExprParser::new().parse(program).unwrap();
@@ -23,11 +22,12 @@ fn main() {
 
     let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
     let mut state_machine = TCStateMachine::new(state);
-    state_machine.step_into().unwrap();
-    state_machine.step_over().unwrap();
-    state_machine.step_over().unwrap();
-    state_machine.step_over().unwrap();
-    println!("{}", state_machine.states.pop().unwrap().get_env_state().0);
+    // state_machine.step_into().unwrap();
+    // state_machine.step_over().unwrap();
+    // state_machine.step_over().unwrap();
+    // state_machine.step_over().unwrap();
+    // state_machine.step_over().unwrap();
+    // println!("{}", state_machine.states.pop().unwrap().get_env_state().0);
     // println!(
     //     "{}",
     //     match ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()) {
@@ -49,6 +49,12 @@ fn main() {
     //         Err(err) => format!("{}", err),
     //     }
     // );
+
+    let result = state_machine.evaluate();
+    match result {
+        Ok(val) => println!("{}", val.0),
+        Err(err) => println!("{}", err),
+    }
 }
 
 fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {

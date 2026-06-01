@@ -436,7 +436,8 @@ impl TCState for TLetState {
             let result_val = err_if_dead(result)?;
             let binding_result_val = binding_result?;
 
-            let gc_return_val = (self.gc_fn.take().unwrap())(result_val.0, binding_result_val.1, result_val.1)?;
+            let gc_return_val =
+                (self.gc_fn.take().unwrap())(result_val.0, binding_result_val.1, result_val.1)?;
             Ok((gc_return_val.0.unwrap(), Some(gc_return_val.1)))
         } else if let Some(_) = self.e1_result {
             self.binding_result = Some(result.clone());
@@ -489,8 +490,15 @@ impl TCStateMachine {
         }
     }
 
-    pub(crate) fn evaluate(state: Box<dyn TCState>) -> TCResult {
-        state.evaluate()?.1
+    pub(crate) fn evaluate(&mut self) -> TCResult {
+        while self.states.len() > 0 {
+            match self.step_over() {
+                Ok(Some(result)) => return result,
+                Ok(None) => continue,
+                Err(err) => return Err(err),
+            }
+        }
+        panic!("failed to evaluate");
     }
 
     pub(crate) fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
@@ -541,41 +549,45 @@ impl TCStateMachine {
         }
     }
 
-    pub(crate) fn step_over(&mut self) -> Result<(), OxidizedError> {
+    pub(crate) fn step_over(&mut self) -> Result<Option<TCResult>, OxidizedError> {
         let top = self.states.pop().unwrap();
         let return_result = top.step_over()?;
         match return_result {
             (_, TCReturn::TCResult(result)) => {
-                let next_top = self.states.pop().unwrap();
-                let is_complete = next_top.is_complete();
-                let handle_result_state = next_top.handle_result(result)?;
-                if !is_complete {
-                    self.states.push(handle_result_state.0);
-                }
-                match handle_result_state.1 {
-                    Some(TCReturn::TCResult(result)) => {
-                        // I think this only needs to be done once and not recursively since you can't have
-                        // multiple gc fn or pop fn returns cascade into each other.  IDK tho....
-                        let next_top = self.states.pop().unwrap();
-                        let is_complete = next_top.is_complete();
-                        let handle_result_state = next_top.handle_result(result)?;
-                        if !is_complete {
-                            self.states.push(handle_result_state.0);
+                if let Some(next_top) = self.states.pop() {
+                    let is_complete = next_top.is_complete();
+                    let handle_result_state = next_top.handle_result(result)?;
+                    if !is_complete {
+                        self.states.push(handle_result_state.0);
+                    }
+                    match handle_result_state.1 {
+                        Some(TCReturn::TCResult(result)) => {
+                            // I think this only needs to be done once and not recursively since you can't have
+                            // multiple gc fn or pop fn returns cascade into each other.  IDK tho....
+                            let next_top = self.states.pop().unwrap();
+                            let is_complete = next_top.is_complete();
+                            let handle_result_state = next_top.handle_result(result.clone())?;
+                            if !is_complete {
+                                self.states.push(handle_result_state.0);
+                            }
+                            if let (_, Some(TCReturn::TCState(state))) = handle_result_state {
+                                self.states.push(state);
+                            }
+                            Ok(Some(result))
                         }
-                        if let (_, Some(TCReturn::TCState(state))) = handle_result_state {
+                        Some(TCReturn::TCState(state)) => {
                             self.states.push(state);
+                            Ok(None)
                         }
+                        _ => Ok(None),
                     }
-                    Some(TCReturn::TCState(state)) => {
-                        self.states.push(state);
-                    }
-                    _ => (),
+                } else {
+                    Ok(Some(result))
                 }
-                Ok(())
             }
             (_, TCReturn::TCState(state)) => {
                 self.states.push(state);
-                Ok(())
+                Ok(None)
             }
         }
     }

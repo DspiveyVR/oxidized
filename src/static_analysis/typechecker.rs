@@ -31,7 +31,6 @@ pub(crate) enum TCReturn {
     TCState(Box<dyn TCState>),
 }
 pub(crate) type TCReturnResult = Result<(Option<Box<dyn TCState>>, TCReturn), OxidizedError>;
-pub(crate) type TCEvalResult = Result<(Box<dyn TCState>, TCResult), OxidizedError>;
 pub(crate) type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
 // FIXME: For now i'll ignore the continuation typing
 type TCFn = dyn FnOnce() -> TCReturnResult;
@@ -49,7 +48,7 @@ pub(crate) trait TCState {
 
     fn step_over(self: Box<Self>) -> TCReturnResult;
 
-    fn evaluate(self: Box<Self>) -> TCEvalResult;
+    fn evaluate(self: Box<Self>) -> TCResult;
 
     fn handle_result(
         self: Box<Self>,
@@ -110,13 +109,9 @@ impl TCState for TExprState {
         self.step_into()
     }
 
-    fn evaluate(mut self: Box<Self>) -> TCEvalResult {
-        self.is_complete = true;
-        let e_return = (self.e_fn.take().unwrap())()?;
-        match e_return {
-            (_, TCReturn::TCResult(result)) => Ok((self, result)),
-            (_, TCReturn::TCState(state)) => state.evaluate(),
-        }
+    fn evaluate(self: Box<Self>) -> TCResult {
+        let mut state_machine = TCStateMachine::new(self);
+        state_machine.evaluate()
     }
 
     fn handle_result(
@@ -165,13 +160,9 @@ impl TCState for TLetrgnState {
         self.step_into()
     }
 
-    fn evaluate(mut self: Box<Self>) -> TCEvalResult {
-        self.is_complete = true;
-        let e_return = (self.e_fn.take().unwrap())()?;
-        match e_return {
-            (_, TCReturn::TCResult(result)) => Ok((self, result)),
-            (_, TCReturn::TCState(state)) => state.evaluate(),
-        }
+    fn evaluate(self: Box<Self>) -> TCResult {
+        let mut state_machine = TCStateMachine::new(self);
+        state_machine.evaluate()
     }
 
     fn handle_result(
@@ -225,27 +216,9 @@ impl TCState for TSeqState {
         Ok(e1_result)
     }
 
-    fn evaluate(mut self: Box<Self>) -> TCEvalResult {
-        self.is_complete = true;
-        let e1_return = (self.e1_fn.take().unwrap())()?;
-        match e1_return {
-            (_, TCReturn::TCResult(result)) => {
-                let e2_return = (self.e2_fn.take().unwrap())(result?.0)?;
-                match e2_return {
-                    (_, TCReturn::TCResult(result)) => Ok((self, result)),
-                    (_, TCReturn::TCState(state)) => state.evaluate(),
-                }
-            }
-            (_, TCReturn::TCState(state)) => {
-                let e1_result = state.evaluate()?.1;
-
-                let e2_return = (self.e2_fn.take().unwrap())(e1_result?.0)?;
-                match e2_return {
-                    (_, TCReturn::TCResult(result)) => Ok((self, result)),
-                    (_, TCReturn::TCState(state)) => state.evaluate(),
-                }
-            }
-        }
+    fn evaluate(self: Box<Self>) -> TCResult {
+        let mut state_machine = TCStateMachine::new(self);
+        state_machine.evaluate()
     }
 
     fn handle_result(
@@ -282,7 +255,7 @@ impl TCState for TSeqState {
                 }
                 (_, TCReturn::TCState(state)) => {
                     let e1_value = state.evaluate()?;
-                    let mut e2_return = (self.e2_fn.take().unwrap())(e1_value.1?.0)?;
+                    let mut e2_return = (self.e2_fn.take().unwrap())(e1_value.0)?;
                     if let (_, TCReturn::TCResult(_)) = e2_return {
                         self.is_complete = true;
                     }
@@ -330,28 +303,9 @@ impl TCState for TLetState {
         Ok(e1_result)
     }
 
-    fn evaluate(mut self: Box<Self>) -> TCEvalResult {
-        self.is_complete = true;
-        let e1_return = (self.e1_fn.take().unwrap())()?;
-
-        match e1_return {
-            (_, TCReturn::TCResult(result)) => {
-                let e2_return = (self.e2_fn.take().unwrap())(result?.0)?;
-                match e2_return {
-                    (_, TCReturn::TCResult(result)) => Ok((self, result)),
-                    (_, TCReturn::TCState(state)) => state.evaluate(),
-                }
-            }
-            (_, TCReturn::TCState(state)) => {
-                let e1_result = state.evaluate()?.1;
-
-                let e2_return = (self.e2_fn.take().unwrap())(e1_result?.0)?;
-                match e2_return {
-                    (_, TCReturn::TCResult(result)) => Ok((self, result)),
-                    (_, TCReturn::TCState(state)) => state.evaluate(),
-                }
-            }
-        }
+    fn evaluate(self: Box<Self>) -> TCResult {
+        let mut state_machine = TCStateMachine::new(self);
+        state_machine.evaluate()
     }
 
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
@@ -384,7 +338,7 @@ impl TCState for TLetState {
                         }
                         (_, TCReturn::TCState(state)) => {
                             let binding_value = state.evaluate()?;
-                            let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.1?.0)?;
+                            let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.0)?;
                             if let (_, TCReturn::TCResult(_)) = e2_return {
                                 self.is_complete = true;
                             }
@@ -394,7 +348,7 @@ impl TCState for TLetState {
                     }
                 }
                 (_, TCReturn::TCState(state)) => {
-                    let e1_value = err_if_dead(state.evaluate()?.1)?;
+                    let e1_value = err_if_dead(state.evaluate())?;
                     let binding_return = (self.binding_fn.take().unwrap())(e1_value.0, e1_value.1)?;
                     match binding_return {
                         (_, TCReturn::TCResult(result)) => {
@@ -408,7 +362,7 @@ impl TCState for TLetState {
                         }
                         (_, TCReturn::TCState(state)) => {
                             let binding_value = state.evaluate()?;
-                            let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.1?.0)?;
+                            let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.0)?;
                             if let (_, TCReturn::TCResult(_)) = e2_return {
                                 self.is_complete = true;
                             }

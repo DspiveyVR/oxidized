@@ -3,7 +3,7 @@ mod debugging;
 mod static_analysis;
 mod testing;
 
-use crate::static_analysis::typechecker::*;
+use crate::static_analysis::tc_state_machine::*;
 use lalrpop_util::lalrpop_mod;
 
 use crate::static_analysis::data_structures::*;

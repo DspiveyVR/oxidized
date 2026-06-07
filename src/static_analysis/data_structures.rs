@@ -197,7 +197,7 @@ impl ConcreteTyping {
 
     pub(crate) fn set_type(&self, t1: Type, t2: Type) -> Self {
         let mut new_env = self.clone();
-        if let Some(t) = new_env.types.0.iter_mut().find(|t| t == &&t1) {
+        if let Some(t) = new_env.types.0.iter_mut().find(|t| t == &&t1 ) {
             *t = t2;
             new_env
         } else {

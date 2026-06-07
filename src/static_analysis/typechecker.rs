@@ -18,6 +18,8 @@ step debugging:
 
 */
 
+use std::fmt::Display;
+
 use super::auxiliary::*;
 use super::data_structures::*;
 use crate::ast::Constant;
@@ -43,7 +45,7 @@ pub(crate) struct TCStateMachine {
     pub(crate) states: Vec<Box<dyn TCState>>,
 }
 
-pub(crate) trait TCState {
+pub(crate) trait TCState: Display {
     fn step_into(self: Box<Self>) -> TCReturnResult;
 
     fn step_over(self: Box<Self>) -> TCReturnResult;
@@ -57,6 +59,12 @@ pub(crate) trait TCState {
 
     fn is_complete(&self) -> bool;
 
+    // If a state contains a function intended to be called at the end of its evaluation
+    // such as gc_fn for TLetState, the state must remain on the stack until it is fully evaluated.
+    fn should_remain_on_stack(&self) -> bool {
+        false
+    }
+
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping);
 }
 
@@ -64,6 +72,17 @@ struct TExprState {
     e_fn: Option<Box<TCFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     is_complete: bool,
+}
+
+impl Display for TExprState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "TExprState {{ state: ({}, {}) }}",
+            self.get_env_state().0,
+            self.get_env_state().1
+        )
+    }
 }
 
 struct TLetrgnState {
@@ -74,12 +93,44 @@ struct TLetrgnState {
     is_complete: bool,
 }
 
+impl Display for TLetrgnState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "TLetrgnState {{ state: ({}, {}), e_result: {} }}",
+            self.get_env_state().0,
+            self.get_env_state().1,
+            if let Some(_) = self.e_result {
+                "Some(_)"
+            } else {
+                "None"
+            }
+        )
+    }
+}
+
 struct TSeqState {
     e1_fn: Option<Box<TCFn>>,
     e2_fn: Option<Box<TCConsumerFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     e1_result: Option<TCResult>,
     is_complete: bool,
+}
+
+impl Display for TSeqState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "TSeqState {{ state: ({}, {}), e1_result: {} }}",
+            self.get_env_state().0,
+            self.get_env_state().1,
+            if let Some(_) = self.e1_result {
+                "Some(_)"
+            } else {
+                "None"
+            }
+        )
+    }
 }
 
 struct TLetState {
@@ -94,6 +145,39 @@ struct TLetState {
     binding_result: Option<TCResult>,
     is_complete: bool,
 }
+
+impl Display for TLetState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "TLetState {{ state: ({}, {}), e1_result: {}, e2_result: {}, bound_type: {}, binding_result: {} }}",
+            self.get_env_state().0,
+            self.get_env_state().1,
+            if let Some(_) = self.e1_result {
+                "Some(_)"
+            } else {
+                "None"
+            },
+            if let Some(_) = self.e2_result {
+                "Some(_)"
+            } else {
+                "None"
+            },
+            if let Some(_) = self.bound_type {
+                "Some(_)"
+            } else {
+                "None"
+            },
+            if let Some(_) = self.binding_result {
+                "Some(_)"
+            } else {
+                "None"
+            }
+        )
+    }
+}
+
+// Maybe is complete should be something like "can call exit function"
 
 impl TCState for TExprState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
@@ -184,6 +268,10 @@ impl TCState for TLetrgnState {
 
     fn is_complete(&self) -> bool {
         self.is_complete
+    }
+
+    fn should_remain_on_stack(&self) -> bool {
+        true
     }
 }
 
@@ -379,6 +467,10 @@ impl TCState for TLetState {
         self.is_complete
     }
 
+    fn should_remain_on_stack(&self) -> bool {
+        true
+    }
+
     fn handle_result(
         mut self: Box<Self>,
         result: TCResult,
@@ -511,9 +603,9 @@ impl TCStateMachine {
                 if let Some(next_top) = self.states.pop() {
                     let is_complete = next_top.is_complete();
                     let handle_result_state = next_top.handle_result(result)?;
-                    if !is_complete {
-                        self.states.push(handle_result_state.0);
-                    }
+                    // if !is_complete {
+                    //     self.states.push(handle_result_state.0);
+                    // }
                     match handle_result_state.1 {
                         Some(TCReturn::TCResult(result)) => {
                             // I think this only needs to be done once and not recursively since you can't have
@@ -521,15 +613,17 @@ impl TCStateMachine {
                             let next_top = self.states.pop().unwrap();
                             let is_complete = next_top.is_complete();
                             let handle_result_state = next_top.handle_result(result.clone())?;
-                            if !is_complete {
-                                self.states.push(handle_result_state.0);
-                            }
+                            // if !is_complete {
+                            //     self.states.push(handle_result_state.0);
+                            // }
                             if let (_, Some(TCReturn::TCState(state))) = handle_result_state {
+                                println!("ln 620: {}", state);
                                 self.states.push(state);
                             }
                             Ok(Some(result))
                         }
                         Some(TCReturn::TCState(state)) => {
+                            println!("ln 626: {}", state);
                             self.states.push(state);
                             Ok(None)
                         }
@@ -539,7 +633,14 @@ impl TCStateMachine {
                     Ok(Some(result))
                 }
             }
-            (_, TCReturn::TCState(state)) => {
+            (last_top, TCReturn::TCState(state)) => {
+                if let Some(state) = last_top {
+                    if state.should_remain_on_stack() {
+                        println!("ln 639: {}", state);
+                        self.states.push(state);
+                    }
+                }
+                println!("ln 643: {}", state);
                 self.states.push(state);
                 Ok(None)
             }

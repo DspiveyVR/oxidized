@@ -3,7 +3,7 @@ use super::data_structures::*;
 use color_print::cprintln;
 use std::fmt::Display;
 
-const DEBUG_TCSTATE: bool = true;
+const DEBUG_TCSTATE: bool = false;
 
 // FIXME: figure out where to put err_if_dead calls
 pub(crate) enum TCReturn {
@@ -169,7 +169,7 @@ impl TCState for TExprState {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
         let mut state_machine = TCStateMachine::new(self);
-        state_machine.evaluate()
+        state_machine._evaluate()
     }
 
     fn handle_result(
@@ -186,7 +186,6 @@ impl TCState for TExprState {
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
     }
-
 }
 
 impl TExprState {
@@ -224,7 +223,7 @@ impl TCState for TLetrgnState {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
         let mut state_machine = TCStateMachine::new(self);
-        state_machine.evaluate()
+        state_machine._evaluate()
     }
 
     fn handle_result(
@@ -250,7 +249,6 @@ impl TCState for TLetrgnState {
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
     }
-
 
     fn should_remain_on_stack(&self) -> bool {
         true
@@ -294,7 +292,7 @@ impl TCState for TSeqState {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
         let mut state_machine = TCStateMachine::new(self);
-        state_machine.evaluate()
+        state_machine._evaluate()
     }
 
     fn handle_result(
@@ -393,7 +391,7 @@ impl TCState for TLetState {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
         let mut state_machine = TCStateMachine::new(self);
-        state_machine.evaluate()
+        state_machine._evaluate()
     }
 
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
@@ -612,19 +610,53 @@ impl TCStateMachine {
         }
         while self.states.len() > 0 {
             match self.step_over() {
-                Ok(Some(result)) => {
+                Ok((Some(final_result), Some(prev_result))) => {
                     if DEBUG_TCSTATE {
                         cprintln!("<cyan>Eval End</cyan>");
                     }
-                    return result;
+                    println!(
+                        "[[final_result]]:\n{}\n[[prev_result]]:",
+                        final_result?.0
+                    );
+                    return prev_result;
                 }
-                Ok(None) => continue,
+                Ok((Some(final_result), None)) => {
+                    if DEBUG_TCSTATE {
+                        cprintln!("<cyan>Eval End</cyan>");
+                    }
+                    return final_result;
+                }
                 Err(err) => {
                     if DEBUG_TCSTATE {
                         cprintln!("<cyan>Eval End</cyan>");
                     }
                     return Err(err);
                 }
+                _ => continue,
+            }
+        }
+        panic!("failed to evaluate");
+    }
+
+    fn _evaluate(&mut self) -> TCResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<cyan>Eval Begin</cyan>");
+        }
+        while self.states.len() > 0 {
+            match self.step_over() {
+                Ok((Some(final_result), _)) => {
+                    if DEBUG_TCSTATE {
+                        cprintln!("<cyan>Eval End</cyan>");
+                    }
+                    return final_result;
+                }
+                Err(err) => {
+                    if DEBUG_TCSTATE {
+                        cprintln!("<cyan>Eval End</cyan>");
+                    }
+                    return Err(err);
+                }
+                _ => continue,
             }
         }
         panic!("failed to evaluate");
@@ -671,7 +703,9 @@ impl TCStateMachine {
         }
     }
 
-    pub(crate) fn step_over(&mut self) -> Result<Option<TCResult>, OxidizedError> {
+    pub(crate) fn step_over(
+        &mut self,
+    ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
         if DEBUG_TCSTATE {
             cprintln!("<cyan>STATE_MACHINE step_over</cyan>");
         }
@@ -684,6 +718,7 @@ impl TCStateMachine {
                     match handle_result_state.1 {
                         Some(TCReturn::TCResult(result)) => {
                             let next_top = self.pop_state().unwrap();
+                            let mut prev_result = result.clone();
                             let mut handle_result_state = next_top.handle_result(result.clone())?;
 
                             // Handles cascading gc_fn calls and probably pop fn too idk how my code works.
@@ -691,30 +726,30 @@ impl TCStateMachine {
                                 match handle_result_state {
                                     (_, Some(TCReturn::TCState(state))) => {
                                         self.push_state(state);
-                                        break Ok(None);
+                                        break Ok((None, None));
                                     }
-                                    (_, Some(TCReturn::TCResult(result))) => {
+                                    (_, Some(TCReturn::TCResult(next_result))) => {
                                         if self.states.len() > 0 {
                                             let next_top = self.pop_state().unwrap();
+                                            prev_result = next_result.clone();
                                             handle_result_state =
-                                                next_top.handle_result(result.clone())?;
+                                                next_top.handle_result(next_result.clone())?;
                                         } else {
-                                            break Ok(Some(result));
+                                            break Ok((Some(next_result), Some(prev_result)));
                                         }
                                     }
-                                    _ => break Ok(None),
+                                    _ => break Ok((None, None)),
                                 }
                             }
                         }
                         Some(TCReturn::TCState(state)) => {
-                            // println!("2nd: {}", state);
                             self.push_state(state);
-                            Ok(None)
+                            Ok((None, None))
                         }
-                        _ => Ok(None),
+                        _ => Ok((None, None)),
                     }
                 } else {
-                    Ok(Some(result))
+                    Ok((Some(result), None))
                 }
             }
             (last_top, TCReturn::TCState(state)) => {
@@ -724,9 +759,8 @@ impl TCStateMachine {
                         self.push_state(state);
                     }
                 }
-                // println!("4th: {}", state);
                 self.push_state(state);
-                Ok(None)
+                Ok((None, None))
             }
         }
     }

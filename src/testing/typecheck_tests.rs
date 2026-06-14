@@ -2,7 +2,7 @@ use rstest::*;
 
 use crate::oxidized;
 use crate::static_analysis::data_structures::ConcreteTyping;
-use crate::static_analysis::typechecker::*;
+use crate::static_analysis::tc_state_machine::*;
 use crate::testing::oxide_programs;
 use crate::testing::set_snapshot_suffix;
 

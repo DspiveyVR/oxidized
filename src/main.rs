@@ -23,12 +23,14 @@ fn main() {
 
     let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
     let mut state_machine = TCStateMachine::new(state);
-    // state_machine.step_into().unwrap();
-    // state_machine.step_over().unwrap();
-    // state_machine.step_over().unwrap();
-    // state_machine.step_over().unwrap();
-    // state_machine.step_over().unwrap();
-    // println!("{}", state_machine.states.pop().unwrap().get_env_state().0);
+    state_machine.step_into().unwrap();
+    state_machine.step_into().unwrap();
+    state_machine.step_into().unwrap();
+    state_machine.step_into().unwrap();
+    state_machine.step_over().unwrap();
+    state_machine.step_into().unwrap();
+    state_machine.step_into().unwrap();
+    println!("{}", state_machine.get_env_state().0);
     // println!(
     //     "{}",
     //     match ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()) {

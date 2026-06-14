@@ -35,8 +35,6 @@ pub(crate) trait TCState: Display {
         result: TCResult,
     ) -> Result<(Box<dyn TCState>, Option<TCReturn>), OxidizedError>;
 
-    fn is_complete(&self) -> bool;
-
     // If a state contains a function intended to be called at the end of its evaluation
     // such as gc_fn for TLetState, the state must remain on the stack until it is fully evaluated.
     fn should_remain_on_stack(&self) -> bool {
@@ -49,7 +47,6 @@ pub(crate) trait TCState: Display {
 pub(crate) struct TExprState {
     e_fn: Option<Box<TCFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
-    is_complete: bool,
 }
 
 impl Display for TExprState {
@@ -68,7 +65,6 @@ pub(crate) struct TLetrgnState {
     pop_vars_fn: Option<Box<TCPopVarsFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     e_result: Option<TCResult>,
-    is_complete: bool,
 }
 
 impl Display for TLetrgnState {
@@ -92,7 +88,6 @@ pub(crate) struct TSeqState {
     e2_fn: Option<Box<TCConsumerFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     e1_result: Option<TCResult>,
-    is_complete: bool,
 }
 
 impl Display for TSeqState {
@@ -121,7 +116,6 @@ pub(crate) struct TLetState {
     e1_result: Option<TCResult>,
     e2_result: Option<TCResult>,
     binding_result: Option<TCResult>,
-    is_complete: bool,
 }
 
 impl Display for TLetState {
@@ -162,9 +156,6 @@ impl TCState for TExprState {
             cprintln!("<yellow>[called]: e_fn()</yellow>");
         }
         let mut e_return = (self.e_fn.take().unwrap())()?;
-        if let (_, TCReturn::TCResult(_)) = e_return {
-            self.is_complete = true;
-        }
         e_return.0 = Some(self);
         Ok(e_return)
     }
@@ -195,9 +186,6 @@ impl TCState for TExprState {
         self.env_state.clone()
     }
 
-    fn is_complete(&self) -> bool {
-        self.is_complete
-    }
 }
 
 impl TExprState {
@@ -210,7 +198,6 @@ impl TExprState {
             TCReturn::TCState(Box::new(Self {
                 e_fn: Some(Box::new(e_fn)),
                 env_state,
-                is_complete: false,
             })),
         ))
     }
@@ -223,9 +210,6 @@ impl TCState for TLetrgnState {
             cprintln!("<yellow>[called]: e_fn()</yellow>");
         }
         let mut e_return = (self.e_fn.take().unwrap())()?;
-        if let (_, TCReturn::TCResult(_)) = e_return {
-            self.is_complete = true;
-        }
         e_return.0 = Some(self);
         Ok(e_return)
     }
@@ -266,9 +250,6 @@ impl TCState for TLetrgnState {
         self.env_state.clone()
     }
 
-    fn is_complete(&self) -> bool {
-        self.is_complete
-    }
 
     fn should_remain_on_stack(&self) -> bool {
         true
@@ -291,7 +272,6 @@ impl TLetrgnState {
                 pop_vars_fn: Some(Box::new(pop_vars_fn)),
                 env_state,
                 e_result: None,
-                is_complete: false,
             })),
         ))
     }
@@ -344,9 +324,6 @@ impl TCState for TSeqState {
                 cprintln!("<yellow>[called]: e2_fn({})</yellow>", result.clone()?.0,);
             }
             let mut e2_return = (self.e2_fn.take().unwrap())(result?.0)?;
-            if let (_, TCReturn::TCResult(_)) = e2_return {
-                self.is_complete = true;
-            }
             e2_return.0 = Some(self);
             Ok(e2_return)
         } else {
@@ -361,9 +338,6 @@ impl TCState for TSeqState {
                         cprintln!("<yellow>[called]: e2_fn({})</yellow>", e1_value.clone().0,);
                     }
                     let mut e2_return = (self.e2_fn.take().unwrap())(e1_value.0)?;
-                    if let (_, TCReturn::TCResult(_)) = e2_return {
-                        self.is_complete = true;
-                    }
                     e2_return.0 = Some(self);
                     Ok(e2_return)
                 }
@@ -373,18 +347,11 @@ impl TCState for TSeqState {
                         cprintln!("<yellow>[called]: e2_fn({})</yellow>", e1_value.clone().0,);
                     }
                     let mut e2_return = (self.e2_fn.take().unwrap())(e1_value.0)?;
-                    if let (_, TCReturn::TCResult(_)) = e2_return {
-                        self.is_complete = true;
-                    }
                     e2_return.0 = Some(self);
                     Ok(e2_return)
                 }
             }
         }
-    }
-
-    fn is_complete(&self) -> bool {
-        self.is_complete
     }
 }
 
@@ -403,7 +370,6 @@ impl TSeqState {
                 e1_fn: Some(Box::new(e1_fn)),
                 e2_fn: Some(Box::new(e2_fn)),
                 env_state,
-                is_complete: false,
                 e1_result: None,
             })),
         ))
@@ -417,9 +383,6 @@ impl TCState for TLetState {
             cprintln!("<yellow>[called]: e1_fn()</yellow>");
         }
         let mut e1_result = (self.e1_fn.take().unwrap())()?;
-        if let (_, TCReturn::TCResult(_)) = e1_result {
-            self.is_complete = true;
-        }
         e1_result.0 = Some(self);
         Ok(e1_result)
     }
@@ -483,15 +446,8 @@ impl TCState for TLetState {
                             e2_return.0 = Some(self);
                             Ok(e2_return)
                         }
-                        (_, TCReturn::TCState(state)) => {
+                        (_, TCReturn::TCState(_)) => {
                             panic!("Unexpected match");
-                            // let binding_value = state.evaluate()?;
-                            // let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.0)?;
-                            // if let (_, TCReturn::TCResult(_)) = e2_return {
-                            //     self.is_complete = true;
-                            // }
-                            // e2_return.0 = Some(self);
-                            // Ok(e2_return)
                         }
                     }
                 }
@@ -523,24 +479,13 @@ impl TCState for TLetState {
                             e2_return.0 = Some(self);
                             Ok(e2_return)
                         }
-                        (_, TCReturn::TCState(state)) => {
+                        (_, TCReturn::TCState(_)) => {
                             panic!("Unexpected match");
-                            // let binding_value = state.evaluate()?;
-                            // let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.0)?;
-                            // if let (_, TCReturn::TCResult(_)) = e2_return {
-                            //     self.is_complete = true;
-                            // }
-                            // e2_return.0 = Some(self);
-                            // Ok(e2_return)
                         }
                     }
                 }
             }
         }
-    }
-
-    fn is_complete(&self) -> bool {
-        self.is_complete
     }
 
     fn should_remain_on_stack(&self) -> bool {
@@ -619,7 +564,6 @@ impl TLetState {
                 e2_fn: Some(Box::new(e2_fn)),
                 gc_fn: Some(Box::new(gc_fn)),
                 env_state,
-                is_complete: false,
                 e1_result: None,
                 binding_result: None,
                 bound_type: None,
@@ -702,12 +646,10 @@ impl TCStateMachine {
         match return_result {
             (_, TCReturn::TCResult(result)) => {
                 let next_top = self.pop_state().unwrap();
-                let is_complete = next_top.is_complete();
                 let handle_result_state = next_top.handle_result(result)?;
                 match handle_result_state.1 {
                     Some(TCReturn::TCResult(result)) => {
                         let next_top = self.pop_state().unwrap();
-                        let is_complete = next_top.is_complete();
                         let handle_result_state = next_top.handle_result(result)?;
                         if let (_, Some(TCReturn::TCState(state))) = handle_result_state {
                             self.push_state(state);

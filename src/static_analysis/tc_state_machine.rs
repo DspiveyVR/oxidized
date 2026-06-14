@@ -1,6 +1,9 @@
-use std::fmt::Display;
-use super::data_structures::*;
 use super::auxiliary::*;
+use super::data_structures::*;
+use color_print::cprintln;
+use std::fmt::Display;
+
+const DEBUG_TCSTATE: bool = true;
 
 // FIXME: figure out where to put err_if_dead calls
 pub(crate) enum TCReturn {
@@ -31,8 +34,6 @@ pub(crate) trait TCState: Display {
         self: Box<Self>,
         result: TCResult,
     ) -> Result<(Box<dyn TCState>, Option<TCReturn>), OxidizedError>;
-
-    fn is_complete(&self) -> bool;
 
     // If a state contains a function intended to be called at the end of its evaluation
     // such as gc_fn for TLetState, the state must remain on the stack until it is fully evaluated.
@@ -75,10 +76,10 @@ impl Display for TLetrgnState {
             "TLetrgnState {{ state: ({}, {}), e_result: {} }}",
             self.get_env_state().0,
             self.get_env_state().1,
-            if let Some(_) = self.e_result {
-                "Some(_)"
-            } else {
-                "None"
+            match &self.e_result {
+                Some(Ok(tup)) => format!("Some(({}, {}))", tup.0, tup.1),
+                Some(Err(err)) => format!("Some({})", err),
+                _ => "None".to_string(),
             }
         )
     }
@@ -99,10 +100,10 @@ impl Display for TSeqState {
             "TSeqState {{ state: ({}, {}), e1_result: {} }}",
             self.get_env_state().0,
             self.get_env_state().1,
-            if let Some(_) = self.e1_result {
-                "Some(_)"
-            } else {
-                "None"
+            match &self.e1_result {
+                Some(Ok(tup)) => format!("Some(({}, {}))", tup.0, tup.1),
+                Some(Err(err)) => format!("Some({})", err),
+                _ => "None".to_string(),
             }
         )
     }
@@ -128,34 +129,36 @@ impl Display for TLetState {
             "TLetState {{ state: ({}, {}), e1_result: {}, e2_result: {}, bound_type: {}, binding_result: {} }}",
             self.get_env_state().0,
             self.get_env_state().1,
-            if let Some(_) = self.e1_result {
-                "Some(_)"
-            } else {
-                "None"
+            match &self.e1_result {
+                Some(Ok(tup)) => format!("Some(({}, {}))", tup.0, tup.1),
+                Some(Err(err)) => format!("Some({})", err),
+                _ => "None".to_string(),
             },
-            if let Some(_) = self.e2_result {
-                "Some(_)"
-            } else {
-                "None"
+            match &self.e2_result {
+                Some(Ok(tup)) => format!("Some(({}, {}))", tup.0, tup.1),
+                Some(Err(err)) => format!("Some({})", err),
+                _ => "None".to_string(),
             },
-            if let Some(_) = self.bound_type {
-                "Some(_)"
+            if let Some(typ) = &self.bound_type {
+                format!("Some({})", typ)
             } else {
-                "None"
+                "None".to_string()
             },
-            if let Some(_) = self.binding_result {
-                "Some(_)"
-            } else {
-                "None"
+            match &self.binding_result {
+                Some(Ok(tup)) => format!("Some(({}, {}))", tup.0, tup.1),
+                Some(Err(err)) => format!("Some({})", err),
+                _ => "None".to_string(),
             }
         )
     }
 }
 
-// Maybe is complete should be something like "can call exit function"
-
 impl TCState for TExprState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[step_into]]\n{}</red>", self);
+            cprintln!("<yellow>[called]: e_fn()</yellow>");
+        }
         let mut e_return = (self.e_fn.take().unwrap())()?;
         if let (_, TCReturn::TCResult(_)) = e_return {
             self.is_complete = true;
@@ -169,6 +172,9 @@ impl TCState for TExprState {
     }
 
     fn evaluate(self: Box<Self>) -> TCResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[evaluate]]\n{}</red>", self);
+        }
         let mut state_machine = TCStateMachine::new(self);
         state_machine.evaluate()
     }
@@ -177,15 +183,14 @@ impl TCState for TExprState {
         self: Box<Self>,
         _: TCResult,
     ) -> Result<(Box<dyn TCState>, Option<TCReturn>), OxidizedError> {
+        if DEBUG_TCSTATE {
+            cprintln!("<blue>[[handle_result]]\n{}</blue>", self);
+        }
         Ok((self, None))
     }
 
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
-    }
-
-    fn is_complete(&self) -> bool {
-        self.is_complete
     }
 }
 
@@ -207,6 +212,10 @@ impl TExprState {
 
 impl TCState for TLetrgnState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[step_into]]\n{}</red>", self);
+            cprintln!("<yellow>[called]: e_fn()</yellow>");
+        }
         let mut e_return = (self.e_fn.take().unwrap())()?;
         if let (_, TCReturn::TCResult(_)) = e_return {
             self.is_complete = true;
@@ -220,6 +229,9 @@ impl TCState for TLetrgnState {
     }
 
     fn evaluate(self: Box<Self>) -> TCResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[evaluate]]\n{}</red>", self);
+        }
         let mut state_machine = TCStateMachine::new(self);
         state_machine.evaluate()
     }
@@ -228,21 +240,24 @@ impl TCState for TLetrgnState {
         mut self: Box<Self>,
         result: TCResult,
     ) -> Result<(Box<dyn TCState>, Option<TCReturn>), OxidizedError> {
-        if let Some(result) = self.e_result.clone() {
-            let pop_var_val = (self.pop_vars_fn.take().unwrap())(result)?;
-            return Ok((self, Some(pop_var_val.1)));
-        } else {
-            self.e_result = Some(result.clone())
+        if DEBUG_TCSTATE {
+            cprintln!(
+                "<red>[[handle_result]]: \n<white>{}</white>\n{}</red>",
+                result.clone()?.0,
+                self
+            );
+            cprintln!(
+                "<yellow>[called]: pop_vars_fn(({}, {}))</yellow>",
+                result.clone()?.0,
+                result.clone()?.1
+            );
         }
-        Ok((self, Some(TCReturn::TCResult(result))))
+        let pop_var_val = (self.pop_vars_fn.take().unwrap())(result)?;
+        Ok((self, Some(pop_var_val.1)))
     }
 
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
-    }
-
-    fn is_complete(&self) -> bool {
-        self.is_complete
     }
 
     fn should_remain_on_stack(&self) -> bool {
@@ -274,12 +289,19 @@ impl TLetrgnState {
 
 impl TCState for TSeqState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[step_into]]\n{}</red>", self);
+            cprintln!("<yellow>[called]: e1_fn()</yellow>");
+        }
         let mut e1_result = (self.e1_fn.take().unwrap())()?;
         e1_result.0 = Some(self);
         Ok(e1_result)
     }
 
     fn evaluate(self: Box<Self>) -> TCResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[evaluate]]\n{}</red>", self);
+        }
         let mut state_machine = TCStateMachine::new(self);
         state_machine.evaluate()
     }
@@ -288,6 +310,13 @@ impl TCState for TSeqState {
         mut self: Box<Self>,
         result: TCResult,
     ) -> Result<(Box<dyn TCState>, Option<TCReturn>), OxidizedError> {
+        if DEBUG_TCSTATE {
+            cprintln!(
+                "<red>[[handle_result]]: \n<white>{}</white>\n{}</red>",
+                result.clone()?.0,
+                self
+            );
+        }
         self.e1_result = Some(result);
         Ok((self, None))
     }
@@ -297,7 +326,13 @@ impl TCState for TSeqState {
     }
 
     fn step_over(mut self: Box<Self>) -> TCReturnResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[step_over]]\n{}</red>", self);
+        }
         if let Some(result) = self.e1_result.clone() {
+            if DEBUG_TCSTATE {
+                cprintln!("<yellow>[called]: e2_fn({})</yellow>", result.clone()?.0,);
+            }
             let mut e2_return = (self.e2_fn.take().unwrap())(result?.0)?;
             if let (_, TCReturn::TCResult(_)) = e2_return {
                 self.is_complete = true;
@@ -305,10 +340,16 @@ impl TCState for TSeqState {
             e2_return.0 = Some(self);
             Ok(e2_return)
         } else {
+            if DEBUG_TCSTATE {
+                cprintln!("<yellow>[called]: e1_fn()</yellow>");
+            }
             let e1_return = (self.e1_fn.take().unwrap())()?;
             match e1_return {
                 (_, TCReturn::TCResult(result)) => {
                     let e1_value = result?;
+                    if DEBUG_TCSTATE {
+                        cprintln!("<yellow>[called]: e2_fn({})</yellow>", e1_value.clone().0,);
+                    }
                     let mut e2_return = (self.e2_fn.take().unwrap())(e1_value.0)?;
                     if let (_, TCReturn::TCResult(_)) = e2_return {
                         self.is_complete = true;
@@ -318,6 +359,9 @@ impl TCState for TSeqState {
                 }
                 (_, TCReturn::TCState(state)) => {
                     let e1_value = state.evaluate()?;
+                    if DEBUG_TCSTATE {
+                        cprintln!("<yellow>[called]: e2_fn({})</yellow>", e1_value.clone().0,);
+                    }
                     let mut e2_return = (self.e2_fn.take().unwrap())(e1_value.0)?;
                     if let (_, TCReturn::TCResult(_)) = e2_return {
                         self.is_complete = true;
@@ -327,10 +371,6 @@ impl TCState for TSeqState {
                 }
             }
         }
-    }
-
-    fn is_complete(&self) -> bool {
-        self.is_complete
     }
 }
 
@@ -358,6 +398,10 @@ impl TSeqState {
 
 impl TCState for TLetState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[step_into]]\n{}</red>", self);
+            cprintln!("<yellow>[called]: e1_fn()</yellow>");
+        }
         let mut e1_result = (self.e1_fn.take().unwrap())()?;
         if let (_, TCReturn::TCResult(_)) = e1_result {
             self.is_complete = true;
@@ -367,6 +411,9 @@ impl TCState for TLetState {
     }
 
     fn evaluate(self: Box<Self>) -> TCResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[evaluate]]\n{}</red>", self);
+        }
         let mut state_machine = TCStateMachine::new(self);
         state_machine.evaluate()
     }
@@ -376,7 +423,13 @@ impl TCState for TLetState {
     }
 
     fn step_over(mut self: Box<Self>) -> TCReturnResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[step_over]]\n{}</red>", self);
+        }
         if let Some(result) = self.binding_result.clone() {
+            if DEBUG_TCSTATE {
+                cprintln!("<yellow>[called]: e2_fn({})</yellow>", result.clone()?.0,);
+            }
             let mut e2_return = (self.e2_fn.take().unwrap())(result?.0)?;
             if let (_, TCReturn::TCResult(ref result)) = e2_return {
                 self.e2_result = Some(result.clone());
@@ -384,15 +437,31 @@ impl TCState for TLetState {
             e2_return.0 = Some(self);
             Ok(e2_return)
         } else {
+            if DEBUG_TCSTATE {
+                cprintln!("<yellow>[called]: e1_fn()</yellow>");
+            }
             let e1_return = (self.e1_fn.take().unwrap())()?;
             match e1_return {
                 (_, TCReturn::TCResult(result)) => {
                     self.e1_result = Some(result.clone());
                     let e1_value = err_if_dead(result)?;
+                    if DEBUG_TCSTATE {
+                        cprintln!(
+                            "<yellow>[called]: binding_fn({}, {})</yellow>",
+                            e1_value.clone().0,
+                            e1_value.clone().1
+                        );
+                    }
                     let binding_return = (self.binding_fn.take().unwrap())(e1_value.0, e1_value.1)?;
                     match binding_return {
                         (_, TCReturn::TCResult(result)) => {
                             let binding_value = result?;
+                            if DEBUG_TCSTATE {
+                                cprintln!(
+                                    "<yellow>[called]: e2_fn({})</yellow>",
+                                    binding_value.clone().0,
+                                );
+                            }
                             let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.0)?;
                             if let (_, TCReturn::TCResult(ref result)) = e2_return {
                                 self.e2_result = Some(result.clone());
@@ -415,11 +484,24 @@ impl TCState for TLetState {
                 (_, TCReturn::TCState(state)) => {
                     let e1_value = err_if_dead(state.evaluate())?;
                     self.e1_result = Some(Ok(e1_value.clone()));
+                    if DEBUG_TCSTATE {
+                        cprintln!(
+                            "<yellow>[called]: binding_fn({}, {})</yellow>",
+                            e1_value.clone().0,
+                            e1_value.clone().1
+                        );
+                    }
                     let binding_return = (self.binding_fn.take().unwrap())(e1_value.0, e1_value.1)?;
                     match binding_return {
                         (_, TCReturn::TCResult(result)) => {
                             self.binding_result = Some(result.clone());
                             let binding_value = result?;
+                            if DEBUG_TCSTATE {
+                                cprintln!(
+                                    "<yellow>[called]: e2_fn({})</yellow>",
+                                    binding_value.clone().0,
+                                );
+                            }
                             let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.0)?;
                             if let (_, TCReturn::TCResult(ref result)) = e2_return {
                                 self.e2_result = Some(result.clone());
@@ -443,10 +525,6 @@ impl TCState for TLetState {
         }
     }
 
-    fn is_complete(&self) -> bool {
-        self.is_complete
-    }
-
     fn should_remain_on_stack(&self) -> bool {
         true
     }
@@ -455,6 +533,13 @@ impl TCState for TLetState {
         mut self: Box<Self>,
         result: TCResult,
     ) -> Result<(Box<dyn TCState>, Option<TCReturn>), OxidizedError> {
+        if DEBUG_TCSTATE {
+            cprintln!(
+                "<red>[[handle_result]]: \n<white>{}</white>\n{}</red>",
+                result.clone()?.0,
+                self
+            );
+        }
         // if let Some(_) = self.e2_result { probably not needed?
         //     Ok((self, None))
         // } else
@@ -463,6 +548,14 @@ impl TCState for TLetState {
             let result_val = err_if_dead(result)?;
             let binding_result_val = binding_result?;
 
+            if DEBUG_TCSTATE {
+                cprintln!(
+                    "<yellow>[called]: gc_fn({}, {}, {})</yellow>",
+                    result_val.clone().0,
+                    result_val.clone().1,
+                    binding_result_val.clone().1
+                );
+            }
             let gc_return_val =
                 (self.gc_fn.take().unwrap())(result_val.0, result_val.1, binding_result_val.1)?;
             Ok((self, Some(gc_return_val.1)))
@@ -474,6 +567,13 @@ impl TCState for TLetState {
             self.e1_result = Some(result.clone());
             let result_val = err_if_dead(result)?;
 
+            if DEBUG_TCSTATE {
+                cprintln!(
+                    "<yellow>[called]: binding_fn({}, {})</yellow>",
+                    result_val.clone().0,
+                    result_val.clone().1
+                );
+            }
             let binding_return_val = (self.binding_fn.take().unwrap())(result_val.0, result_val.1)?;
             Ok((self, Some(binding_return_val.1)))
         }
@@ -512,6 +612,31 @@ impl TLetState {
 }
 
 impl TCStateMachine {
+    fn print_stack(&self) {
+        println!("======================");
+        for (i, state) in self.states.iter().enumerate() {
+            cprintln!("<blue>[{}]</blue><green>\n{}</green>", i, state);
+        }
+        println!("----------------------");
+    }
+
+    fn push_state(&mut self, state: Box<dyn TCState>) {
+        self.states.push(state);
+        if DEBUG_TCSTATE {
+            cprintln!("<yellow>(push)</yellow>");
+            self.print_stack();
+        }
+    }
+
+    fn pop_state(&mut self) -> Option<Box<dyn TCState>> {
+        let state = self.states.pop();
+        if DEBUG_TCSTATE {
+            cprintln!("<yellow>(pop)</yellow>");
+            self.print_stack();
+        }
+        state
+    }
+
     pub(crate) fn new(state: Box<dyn TCState>) -> Self {
         Self {
             states: vec![state],
@@ -519,11 +644,24 @@ impl TCStateMachine {
     }
 
     pub(crate) fn evaluate(&mut self) -> TCResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<cyan>Eval Begin</cyan>");
+        }
         while self.states.len() > 0 {
             match self.step_over() {
-                Ok(Some(result)) => return result,
+                Ok(Some(result)) => {
+                    if DEBUG_TCSTATE {
+                        cprintln!("<cyan>Eval End</cyan>");
+                    }
+                    return result;
+                }
                 Ok(None) => continue,
-                Err(err) => return Err(err),
+                Err(err) => {
+                    if DEBUG_TCSTATE {
+                        cprintln!("<cyan>Eval End</cyan>");
+                    }
+                    return Err(err);
+                }
             }
         }
         panic!("failed to evaluate");
@@ -538,75 +676,76 @@ impl TCStateMachine {
     }
 
     pub(crate) fn step_into(&mut self) -> Result<(), OxidizedError> {
-        let top = self.states.pop().unwrap();
+        if DEBUG_TCSTATE {
+            cprintln!("<cyan>STATE_MACHINE step_into</cyan>");
+        }
+        let top = self.pop_state().unwrap();
         let return_result = top.step_into()?;
         match return_result {
             (_, TCReturn::TCResult(result)) => {
-                let next_top = self.states.pop().unwrap();
-                let is_complete = next_top.is_complete();
+                let next_top = self.pop_state().unwrap();
                 let handle_result_state = next_top.handle_result(result)?;
-                if !is_complete {
-                    self.states.push(handle_result_state.0);
-                }
                 match handle_result_state.1 {
                     Some(TCReturn::TCResult(result)) => {
-                        // I think this only needs to be done once and not recursively since you can't have
-                        // multiple gc fn or pop fn returns cascade into each other.  IDK tho....
-                        let next_top = self.states.pop().unwrap();
-                        let is_complete = next_top.is_complete();
+                        let next_top = self.pop_state().unwrap();
                         let handle_result_state = next_top.handle_result(result)?;
-                        if !is_complete {
-                            self.states.push(handle_result_state.0);
-                        }
                         if let (_, Some(TCReturn::TCState(state))) = handle_result_state {
-                            self.states.push(state);
+                            self.push_state(state);
                         }
                     }
                     Some(TCReturn::TCState(state)) => {
-                        self.states.push(state);
+                        self.push_state(state);
                     }
                     _ => (),
                 }
                 Ok(())
             }
             (top, TCReturn::TCState(state)) => {
-                self.states.push(top.unwrap());
-                self.states.push(state);
+                self.push_state(top.unwrap());
+                self.push_state(state);
                 Ok(())
             }
         }
     }
 
     pub(crate) fn step_over(&mut self) -> Result<Option<TCResult>, OxidizedError> {
-        let top = self.states.pop().unwrap();
+        if DEBUG_TCSTATE {
+            cprintln!("<cyan>STATE_MACHINE step_over</cyan>");
+        }
+        let top = self.pop_state().unwrap();
         let return_result = top.step_over()?;
         match return_result {
             (_, TCReturn::TCResult(result)) => {
-                if let Some(next_top) = self.states.pop() {
-                    let is_complete = next_top.is_complete();
+                if let Some(next_top) = self.pop_state() {
                     let handle_result_state = next_top.handle_result(result)?;
-                    // if !is_complete {
-                    //     self.states.push(handle_result_state.0);
-                    // }
                     match handle_result_state.1 {
                         Some(TCReturn::TCResult(result)) => {
-                            // I think this only needs to be done once and not recursively since you can't have
-                            // multiple gc fn or pop fn returns cascade into each other.  IDK tho....
-                            let next_top = self.states.pop().unwrap();
-                            let is_complete = next_top.is_complete();
-                            let handle_result_state = next_top.handle_result(result.clone())?;
-                            // if !is_complete {
-                            //     self.states.push(handle_result_state.0);
-                            // }
-                            if let (_, Some(TCReturn::TCState(state))) = handle_result_state {
-                                // println!("1st: {}", state);
-                                self.states.push(state);
+                            let next_top = self.pop_state().unwrap();
+                            let mut handle_result_state = next_top.handle_result(result.clone())?;
+
+                            // Handles cascading gc_fn calls and probably pop fn too idk how my code works.
+                            loop {
+                                match handle_result_state {
+                                    (_, Some(TCReturn::TCState(state))) => {
+                                        self.push_state(state);
+                                        break Ok(None);
+                                    }
+                                    (_, Some(TCReturn::TCResult(result))) => {
+                                        if self.states.len() > 0 {
+                                            let next_top = self.pop_state().unwrap();
+                                            handle_result_state =
+                                                next_top.handle_result(result.clone())?;
+                                        } else {
+                                            break Ok(Some(result));
+                                        }
+                                    }
+                                    _ => break Ok(None),
+                                }
                             }
-                            Ok(Some(result))
                         }
                         Some(TCReturn::TCState(state)) => {
                             // println!("2nd: {}", state);
-                            self.states.push(state);
+                            self.push_state(state);
                             Ok(None)
                         }
                         _ => Ok(None),
@@ -619,11 +758,11 @@ impl TCStateMachine {
                 if let Some(state) = last_top {
                     if state.should_remain_on_stack() {
                         // println!("3rd: {}", state);
-                        self.states.push(state);
+                        self.push_state(state);
                     }
                 }
                 // println!("4th: {}", state);
-                self.states.push(state);
+                self.push_state(state);
                 Ok(None)
             }
         }

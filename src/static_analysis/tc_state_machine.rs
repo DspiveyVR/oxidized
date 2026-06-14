@@ -35,6 +35,8 @@ pub(crate) trait TCState: Display {
         result: TCResult,
     ) -> Result<(Box<dyn TCState>, Option<TCReturn>), OxidizedError>;
 
+    fn is_complete(&self) -> bool;
+
     // If a state contains a function intended to be called at the end of its evaluation
     // such as gc_fn for TLetState, the state must remain on the stack until it is fully evaluated.
     fn should_remain_on_stack(&self) -> bool {
@@ -192,6 +194,10 @@ impl TCState for TExprState {
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
     }
+
+    fn is_complete(&self) -> bool {
+        self.is_complete
+    }
 }
 
 impl TExprState {
@@ -258,6 +264,10 @@ impl TCState for TLetrgnState {
 
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
+    }
+
+    fn is_complete(&self) -> bool {
+        self.is_complete
     }
 
     fn should_remain_on_stack(&self) -> bool {
@@ -371,6 +381,10 @@ impl TCState for TSeqState {
                 }
             }
         }
+    }
+
+    fn is_complete(&self) -> bool {
+        self.is_complete
     }
 }
 
@@ -523,6 +537,10 @@ impl TCState for TLetState {
                 }
             }
         }
+    }
+
+    fn is_complete(&self) -> bool {
+        self.is_complete
     }
 
     fn should_remain_on_stack(&self) -> bool {
@@ -684,10 +702,12 @@ impl TCStateMachine {
         match return_result {
             (_, TCReturn::TCResult(result)) => {
                 let next_top = self.pop_state().unwrap();
+                let is_complete = next_top.is_complete();
                 let handle_result_state = next_top.handle_result(result)?;
                 match handle_result_state.1 {
                     Some(TCReturn::TCResult(result)) => {
                         let next_top = self.pop_state().unwrap();
+                        let is_complete = next_top.is_complete();
                         let handle_result_state = next_top.handle_result(result)?;
                         if let (_, Some(TCReturn::TCState(state))) = handle_result_state {
                             self.push_state(state);

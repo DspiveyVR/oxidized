@@ -18,11 +18,11 @@ step debugging:
 
 */
 
+use super::data_structures::*;
+use super::tc_state_machine::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
-use super::tc_state_machine::*;
-use super::data_structures::*;
 
 impl Expression {
     pub(crate) fn typecheck(
@@ -232,6 +232,7 @@ impl Expression {
     ) -> TCReturnResult {
         let st_clone = stack_typing.clone();
         let cont_clone = continuation_typing.clone();
+        let st_clone2 = stack_typing.clone();
         TLetrgnState::new_obj(
             move || {
                 let stack_typing = st_clone;
@@ -250,13 +251,14 @@ impl Expression {
                 }
             },
             move |result: TCResult| {
+                let stack_typing = st_clone2;
                 let result = result?;
                 let env = result.0;
                 let return_type = result.1;
 
                 let new_stack_typing = ConcreteTyping {
-                    regions: VecSet((env.regions.0[..env.regions.0.len()]).to_vec()),
-                    types: VecSet((env.types.0[..env.types.0.len()]).to_vec()),
+                    regions: VecSet((env.regions.0[..stack_typing.regions.0.len()]).to_vec()),
+                    types: VecSet((env.types.0[..stack_typing.types.0.len()]).to_vec()),
                 };
 
                 Ok((
@@ -344,20 +346,10 @@ impl Expression {
                     let mut dead_bound_type = bound_type.clone();
                     dead_bound_type.is_dead = Ternary::Yes;
 
-                    // FIXME: something is wrong with how modified environments are passed between states.
-                    // later bindings will be killed here and earlier ones killed later, but then the old env,
-                    // where only the last binding is dead will be the one in the end result.
-
-                    let test = 
-                            gamma2.set_type(bound_type, dead_bound_type);
-
-                    println!("ah");
-                    println!("{}", test.clone());
-
                     Ok((
                         None,
                         TCReturn::TCResult(Ok((
-                            test,
+                            gamma2.set_type(bound_type, dead_bound_type),
                             return_type2,
                         ))),
                     ))

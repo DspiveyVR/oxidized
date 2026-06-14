@@ -174,8 +174,9 @@ impl TCState for TExprState {
 
     fn handle_result(
         self: Box<Self>,
-        _: TCResult,
+        result: TCResult,
     ) -> Result<(Box<dyn TCState>, Option<TCReturn>), OxidizedError> {
+        result?;
         if DEBUG_TCSTATE {
             cprintln!("<blue>[[handle_result]]\n{}</blue>", self);
         }

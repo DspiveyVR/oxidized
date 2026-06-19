@@ -12,10 +12,6 @@ FIXME:
 there's a little more to the regions() metafunction than just accessing the regions.  this will be important for getting the regions
 in the cont typing.  probably can forget about it for now.
 
-
-step debugging:
-    could each tc function return an object containing closures with the tc body inside in multiple parts as well as the type environment?
-
 */
 
 use super::data_structures::*;

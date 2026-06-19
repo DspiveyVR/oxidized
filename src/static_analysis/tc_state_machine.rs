@@ -3,7 +3,7 @@ use super::data_structures::*;
 use color_print::cprintln;
 use std::fmt::Display;
 
-const DEBUG_TCSTATE: bool = true;
+const DEBUG_TCSTATE: bool = false;
 
 pub(crate) enum TCReturn {
     TCResult(TCResult),

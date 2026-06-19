@@ -5,7 +5,6 @@ use std::fmt::Display;
 
 const DEBUG_TCSTATE: bool = true;
 
-// FIXME: figure out where to put err_if_dead calls
 pub(crate) enum TCReturn {
     TCResult(TCResult),
     TCState(Box<dyn TCState>),
@@ -319,7 +318,7 @@ impl TCState for TSeqState {
             let e1_return = (self.e1_fn.take().unwrap())()?;
             match e1_return {
                 (_, TCReturn::TCResult(result)) => {
-                    let e1_value = result?;
+                    let e1_value = err_if_dead(result)?;
                     if DEBUG_TCSTATE {
                         cprintln!("<yellow>[called]: e2_fn({})</yellow>", e1_value.clone().0,);
                     }
@@ -328,7 +327,7 @@ impl TCState for TSeqState {
                     Ok(e2_return)
                 }
                 (_, TCReturn::TCState(state)) => {
-                    let e1_value = state.evaluate()?;
+                    let e1_value = err_if_dead(state.evaluate())?;
                     if DEBUG_TCSTATE {
                         cprintln!("<yellow>[called]: e2_fn({})</yellow>", e1_value.clone().0,);
                     }

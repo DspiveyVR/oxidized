@@ -1,0 +1,5 @@
+---
+source: src/testing/typecheck_tests.rs
+description: "\n    letrgn<'x,  'y, 'z> {\n        let x: u32 = 5;\n        let y: &'x uniq u32 = &'x uniq x;\n        let z: &'y uniq u32 = y;\n        let w: &'z uniq &'x uniq u32 = &'z uniq y; ()\n    }\n    "
+---
+Expected &'z unique &'x unique u32 found &'z unique ( y := &'x unique u32)†

@@ -35,11 +35,12 @@ impl ConcreteTyping {
         let env_union = stack_clone.types.union(continuation_typing.types).0;
         for r in stack_clone.regions.0.iter_mut() {
             if !env_union.iter().any(|t| {
-                if let TypeVariant::Reference(ref_type) = &t.variant {
-                    r.name == ref_type.region_name
-                } else {
-                    false
-                }
+                t.is_dead != Ternary::Yes
+                    && if let TypeVariant::Reference(ref_type) = &t.variant {
+                        r.name == ref_type.region_name
+                    } else {
+                        false
+                    }
             }) {
                 r.loans.0.clear();
             }

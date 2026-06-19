@@ -610,6 +610,9 @@ impl TCStateMachine {
         panic!("failed to evaluate");
     }
 
+    // I wanted to be able to return the final and previous values in the eval method but that only works at the last step.
+    // Since this method is called recursively by the other tc_state methods, returning the previous result multiple times
+    // in this recursive loop leads to incorrect outputs.
     fn _evaluate(&mut self) -> TCResult {
         if DEBUG_TCSTATE {
             cprintln!("<cyan>Eval Begin</cyan>");
@@ -660,7 +663,7 @@ impl TCStateMachine {
                             let mut prev_result = result.clone();
                             let mut handle_result_state = next_top.handle_result(result.clone())?;
 
-                            // Handles cascading gc_fn calls and probably pop fn too idk how my code works.
+                            // Handles cascading calls to exit functions such as gc_fn
                             loop {
                                 match handle_result_state {
                                     Some(TCReturn::TCState(state)) => {
@@ -721,7 +724,7 @@ impl TCStateMachine {
                             let mut prev_result = result.clone();
                             let mut handle_result_state = next_top.handle_result(result.clone())?;
 
-                            // Handles cascading gc_fn calls and probably pop fn too idk how my code works.
+                            // Handles cascading calls to exit functions such as gc_fn
                             loop {
                                 match handle_result_state {
                                     Some(TCReturn::TCState(state)) => {

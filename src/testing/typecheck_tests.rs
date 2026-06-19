@@ -2,6 +2,7 @@ use rstest::*;
 
 use crate::oxidized;
 use crate::static_analysis::data_structures::ConcreteTyping;
+use crate::static_analysis::data_structures::OxidizedError;
 use crate::static_analysis::tc_state_machine::*;
 use crate::testing::oxide_programs;
 use crate::testing::set_snapshot_suffix;
@@ -31,6 +32,10 @@ fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
 #[case(oxide_programs::move_ref_err(), 11)]
 #[case(oxide_programs::copy_ref(), 12)]
 #[case(oxide_programs::copy_ref_usage(), 13)]
+#[case(oxide_programs::move_to_place(), 14)]
+#[case(oxide_programs::move_to_place_err(), 15)]
+#[case(oxide_programs::copy_to_place(), 16)]
+#[case(oxide_programs::copy_to_place_usage(), 17)]
 fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
@@ -53,21 +58,102 @@ fn full_program(#[case] program: &'static str, #[case] n: u32) {
     });
 }
 
-// #[rstest]
-// #[case(oxide_programs::double_ref(), 0)]
-// #[case(oxide_programs::triple_ref(), 1)]
-// fn empty_st(#[case] program: &'static str, #[case] n: u32) {
-//     set_snapshot_suffix!("{}", n);
+#[rstest]
+#[case(oxide_programs::ref_rr_scopes(), 0)]
+fn into_over_x2(#[case] program: &'static str, #[case] n: u32) {
+    set_snapshot_suffix!("{}", n);
 
-//     let ast = oxidized::ExprParser::new().parse(program).unwrap();
+    let ast = oxidized::ExprParser::new().parse(program).unwrap();
+    dbg!(&ast);
 
-//     insta::with_settings!({
-//         description => program,
-//         omit_expression => true
-//     }, {
-//         insta::assert_snapshot!(match ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()) {
-//             Ok(result) => format!("{}", result.0),
-//             Err(err) => format!("{}", err)
-//         })
-//     });
-// }
+    insta::with_settings!({
+        description => program,
+        omit_expression => true
+    }, {
+        insta::assert_snapshot!({
+            let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
+            let mut state_machine = TCStateMachine::new(state);
+            let maybe_error = (|| -> Result<(), OxidizedError> {
+                state_machine.step_into()?;
+                state_machine.step_over()?;
+                state_machine.step_into()?;
+                state_machine.step_over()?;
+                Ok(())
+            })();
+
+            match maybe_error {
+                Ok(_) => format!("{}", state_machine.get_env_state().0),
+                Err(err) => format!("{}", err),
+            }
+        })
+    });
+}
+
+#[rstest]
+#[case(oxide_programs::move_ref(), 0)]
+#[case(oxide_programs::move_to_place(), 1)]
+#[case(oxide_programs::copy_ref(), 2)]
+#[case(oxide_programs::copy_to_place(), 3)]
+fn three_line_move_or_copy(#[case] program: &'static str, #[case] n: u32) {
+    set_snapshot_suffix!("{}", n);
+
+    let ast = oxidized::ExprParser::new().parse(program).unwrap();
+    dbg!(&ast);
+
+    insta::with_settings!({
+        description => program,
+        omit_expression => true
+    }, {
+        insta::assert_snapshot!({
+            let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
+            let mut state_machine = TCStateMachine::new(state);
+            let maybe_error = (|| -> Result<(), OxidizedError> {
+                state_machine.step_into()?;
+                state_machine.step_over()?;
+                state_machine.step_over()?;
+                state_machine.step_over()?;
+                Ok(())
+            })();
+
+            match maybe_error {
+                Ok(_) => format!("{}", state_machine.get_env_state().0),
+                Err(err) => format!("{}", err),
+            }
+        })
+    });
+}
+
+#[rstest]
+#[case(oxide_programs::move_ref_err(), 0)]
+#[case(oxide_programs::move_to_place_err(), 1)]
+#[case(oxide_programs::copy_ref_usage(), 2)]
+#[case(oxide_programs::copy_to_place_usage(), 3)]
+fn four_line_move_or_copy(#[case] program: &'static str, #[case] n: u32) {
+    set_snapshot_suffix!("{}", n);
+
+    let ast = oxidized::ExprParser::new().parse(program).unwrap();
+    dbg!(&ast);
+
+    insta::with_settings!({
+        description => program,
+        omit_expression => true
+    }, {
+        insta::assert_snapshot!({
+            let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
+            let mut state_machine = TCStateMachine::new(state);
+            let maybe_error = (|| -> Result<(), OxidizedError> {
+                state_machine.step_into()?;
+                state_machine.step_over()?;
+                state_machine.step_over()?;
+                state_machine.step_over()?;
+                state_machine.step_over()?;
+                Ok(())
+            })();
+
+            match maybe_error {
+                Ok(_) => format!("{}", state_machine.get_env_state().0),
+                Err(err) => format!("{}", err),
+            }
+        })
+    });
+}

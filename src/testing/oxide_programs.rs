@@ -160,3 +160,49 @@ pub(crate) fn copy_ref_usage() -> &'static str {
     }
     "
 }
+
+#[fixture]
+pub(crate) fn move_to_place() -> &'static str {
+    "
+    letrgn<'x,  'y> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        y; ()
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn move_to_place_err() -> &'static str {
+    "
+    letrgn<'x,  'y, 'z> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        y;
+        let w: &'z uniq &'x uniq u32 = &'z uniq y; ()
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn copy_to_place() -> &'static str {
+    "
+    letrgn<'x,  'y> {
+        let x: u32 = 5;
+        let y: &'x shrd u32 = &'x shrd x;
+        y; ()
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn copy_to_place_usage() -> &'static str {
+    "
+    letrgn<'x,  'y, 'z> {
+        let x: u32 = 5;
+        let y: &'x shrd u32 = &'x shrd x;
+        y;
+        let w: &'z shrd &'x shrd u32 = &'z shrd y; ()
+    }
+    "
+}

@@ -1,4 +1,5 @@
 // tcbreak keyword like JS debugger statement to set breakpoint in typechecker?
+// TODO: parse comments
 
 use crate::ast::*;
 

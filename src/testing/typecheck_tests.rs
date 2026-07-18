@@ -36,6 +36,10 @@ fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
 #[case(oxide_programs::move_to_place_err(), 15)]
 #[case(oxide_programs::copy_to_place(), 16)]
 #[case(oxide_programs::copy_to_place_usage(), 17)]
+#[case(oxide_programs::move_to_place_err2(), 18)]
+#[case(oxide_programs::copy_to_place2(), 19)]
+#[case(oxide_programs::copy_to_place3(), 20)]
+#[case(oxide_programs::move_to_place2(), 21)]
 fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
@@ -88,6 +92,38 @@ fn into_over_x2(#[case] program: &'static str, #[case] n: u32) {
         })
     });
 }
+
+// #[rstest]
+// #[case(oxide_programs::move_to_place2(), 0)]
+// fn into_over_x2_x2(#[case] program: &'static str, #[case] n: u32) {
+//     set_snapshot_suffix!("{}", n);
+
+//     let ast = oxidized::ExprParser::new().parse(program).unwrap();
+//     dbg!(&ast);
+
+//     insta::with_settings!({
+//         description => program,
+//         omit_expression => true
+//     }, {
+//         insta::assert_snapshot!({
+//             let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
+//             let mut state_machine = TCStateMachine::new(state);
+//             let maybe_error = (|| -> Result<(), OxidizedError> {
+//                 state_machine.step_into()?;
+//                 state_machine.step_over()?;
+//                 state_machine.step_over()?;
+//                 state_machine.step_into()?;
+//                 state_machine.step_over()?;
+//                 Ok(())
+//             })();
+
+//             match maybe_error {
+//                 Ok(_) => format!("{}", state_machine.get_env_state().0),
+//                 Err(err) => format!("{}", err),
+//             }
+//         })
+//     });
+// }
 
 #[rstest]
 #[case(oxide_programs::move_ref(), 0)]

@@ -12,10 +12,15 @@ lalrpop_mod!(pub oxidized);
 
 fn main() {
     let program = "
-    letrgn<'x, 'y> {
-        let mut x: u32 = 5;
-        let y: &'x uniq u32 = &'x uniq x; 
-        let z: &'y uniq &'x uniq u32 = &'y uniq y; ()
+    letrgn<'x,  'y> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        letrgn<'z> {
+            y; ()
+        };  
+        letrgn<'w> {
+            let z: u32 = 3; ()
+        }  
     }
     ";
     let ast = oxidized::ExprParser::new().parse(program).unwrap();
@@ -23,41 +28,36 @@ fn main() {
 
     let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
     let mut state_machine = TCStateMachine::new(state);
-    state_machine.step_into().unwrap();
-    state_machine.step_into().unwrap();
-    state_machine.step_into().unwrap();
-    state_machine.step_into().unwrap();
-    state_machine.step_over().unwrap();
-    state_machine.step_into().unwrap();
-    state_machine.step_into().unwrap();
-    println!("{}", state_machine.get_env_state().0);
-    // println!(
-    //     "{}",
-    //     match ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()) {
-    //         Ok(result) => {
-    //             match result.1 {
-    //                 TCReturn::TCResult(result) => match result {
-    //                     Ok(val) => format!("{}", val.0),
-    //                     Err(err) => format!("{}", err),
-    //                 },
-    //                 TCReturn::TCState(state) => {
-    //                     let result = TCStateMachine::evaluate(state);
-    //                     match result {
-    //                         Ok(val) => format!("{}", val.0),
-    //                         Err(err) => format!("{}", err),
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //         Err(err) => format!("{}", err),
-    //     }
-    // );
+    let maybe_error = (|| -> Result<(), OxidizedError> {
+        // past 1st 2 lets
+        state_machine.step_into()?;
+        state_machine.step_over()?;
+        state_machine.step_over()?;
 
-    let result = state_machine.evaluate();
-    match result {
-        Ok(val) => println!("{}", val.0),
+        // into 2nd letrgn
+        state_machine.step_into()?;
+        state_machine.step_into()?;
+
+        // out of 2nd letrgn
+        state_machine.step_over()?;
+        state_machine.step_over()?;
+
+        // // into 3rd letrgn
+        // state_machine.step_into()?;
+
+        Ok(())
+    })();
+
+    match maybe_error {
+        Ok(_) => println!("{}", state_machine.get_env_state().0),
         Err(err) => println!("{}", err),
     }
+
+    // let result = state_machine.evaluate();
+    // match result {
+    //     Ok(val) => println!("{}", val.0),
+    //     Err(err) => println!("{}", err),
+    // }
 }
 
 fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {

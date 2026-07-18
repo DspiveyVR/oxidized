@@ -173,6 +173,22 @@ pub(crate) fn move_to_place() -> &'static str {
 }
 
 #[fixture]
+pub(crate) fn move_to_place2() -> &'static str {
+    "
+    letrgn<'x,  'y> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        letrgn<'z> {
+            y; ()
+        };
+        letrgn<'w> {
+            let z: u32 = 3; ()
+        }  
+    }
+    "
+}
+
+#[fixture]
 pub(crate) fn move_to_place_err() -> &'static str {
     "
     letrgn<'x,  'y, 'z> {
@@ -185,6 +201,17 @@ pub(crate) fn move_to_place_err() -> &'static str {
 }
 
 #[fixture]
+pub(crate) fn move_to_place_err2() -> &'static str {
+    "
+    letrgn<'x,  'y> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        y; y; ()
+    }
+    "
+}
+
+#[fixture]
 pub(crate) fn copy_to_place() -> &'static str {
     "
     letrgn<'x,  'y> {
@@ -192,6 +219,28 @@ pub(crate) fn copy_to_place() -> &'static str {
         let y: &'x shrd u32 = &'x shrd x;
         y; ()
     }
+    "
+}
+
+#[fixture]
+pub(crate) fn copy_to_place2() -> &'static str {
+    "
+    letrgn<'x,  'y> {
+        let x: u32 = 5;
+        let y: &'x shrd u32 = &'x shrd x;
+        y; y; ()
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn copy_to_place3() -> &'static str {
+    "
+    letrgn<'x,  'y> {
+        let x: u32 = 5;
+        let y: &'x shrd u32 = &'x shrd x;
+        y; y; ()
+    }; ()
     "
 }
 

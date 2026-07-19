@@ -43,7 +43,11 @@ fn main() {
         state_machine.step_over()?;
 
         // // into 3rd letrgn
-        // state_machine.step_into()?;
+        state_machine.step_into()?;
+        state_machine.step_into()?;
+
+        state_machine.step_over()?;
+        state_machine.step_over()?;
 
         Ok(())
     })();

@@ -4,63 +4,64 @@ use color_print::cprintln;
 use std::fmt::Display;
 
 const DEBUG_TCSTATE: bool = true;
+const PRINT_STACK: bool = false;
 
 /*
 idk bruh this aint right. it happens on case 21
 
 [3]
-TSeqState { state: (ConcreteTyping { 
-	r: [
-		'x -> { unique x },
-		'y -> {  }
-	]
- 	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
-	]
- }, ConcreteTyping { 
-	r: [
-	]
- 	𝜏: [
-	]
- }), e1_result: Some((ConcreteTyping { 
-	r: [
-		'x -> {  },
-		'y -> {  }
-	]
- 	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†
-	]
+TSeqState { state: (ConcreteTyping {
+    r: [
+        'x -> { unique x },
+        'y -> {  }
+    ]
+     𝜏: [
+         x := u32,
+         y := &'x unique u32
+    ]
+ }, ConcreteTyping {
+    r: [
+    ]
+     𝜏: [
+    ]
+ }), e1_result: Some((ConcreteTyping {
+    r: [
+        'x -> {  },
+        'y -> {  }
+    ]
+     𝜏: [
+         x := u32,
+        ( y := &'x unique u32)†
+    ]
  }, ())) }
 ----------------------
-[[handle_result]]: 
-(ConcreteTyping { 
-	r: [
-		'x -> {  },
-		'y -> {  },
-		'w -> {  }
-	]
- 	𝜏: [
-		( z := u32)†,
-		( y := &'x unique u32)†,
-		 z := u32 // did x get replaced with z somehow?
-	]
+[[handle_result]]:
+(ConcreteTyping {
+    r: [
+        'x -> {  },
+        'y -> {  },
+        'w -> {  }
+    ]
+     𝜏: [
+        ( z := u32)†,
+        ( y := &'x unique u32)†,
+         z := u32 // did x get replaced with z somehow?
+    ]
  }, ())
-TLetrgnState { state: (ConcreteTyping { 
-	r: [
-		'x -> {  },
-		'y -> {  }
-	]
- 	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†
-	]
- }, ConcreteTyping { 
-	r: [
-	]
- 	𝜏: [
-	]
+TLetrgnState { state: (ConcreteTyping {
+    r: [
+        'x -> {  },
+        'y -> {  }
+    ]
+     𝜏: [
+         x := u32,
+        ( y := &'x unique u32)†
+    ]
+ }, ConcreteTyping {
+    r: [
+    ]
+     𝜏: [
+    ]
  }), e_result: None }
 
 
@@ -81,6 +82,8 @@ type TC3ConsumerFn = dyn FnOnce(ConcreteTyping, Type, Type) -> TCReturnResult;
 
 pub(crate) struct TCStateMachine {
     states: Vec<Box<dyn TCState>>,
+    si_count: u32,
+    so_count: u32,
 }
 
 pub(crate) trait TCState: Display {
@@ -650,16 +653,38 @@ impl TCStateMachine {
     fn push_state(&mut self, state: Box<dyn TCState>) {
         self.states.push(state);
         if DEBUG_TCSTATE {
-            cprintln!("<yellow>(push)</yellow>");
-            self.print_stack();
+            cprintln!(
+                "<yellow>(push) {}</yellow>",
+                if !PRINT_STACK {
+                    format!("{}", self.states.last().unwrap())
+                } else {
+                    "".to_string()
+                }
+            );
+            if PRINT_STACK {
+                self.print_stack();
+            }
         }
     }
 
     fn pop_state(&mut self) -> Option<Box<dyn TCState>> {
         let state = self.states.pop();
         if DEBUG_TCSTATE {
-            cprintln!("<yellow>(pop)</yellow>");
-            self.print_stack();
+            cprintln!(
+                "<yellow>(pop) {}</yellow>",
+                if !PRINT_STACK {
+                    if let Some(state) = &state {
+                        format!("{}", state)
+                    } else {
+                        "".to_string()
+                    }
+                } else {
+                    "".to_string()
+                }
+            );
+            if PRINT_STACK {
+                self.print_stack();
+            }
         }
         state
     }
@@ -667,6 +692,8 @@ impl TCStateMachine {
     pub(crate) fn new(state: Box<dyn TCState>) -> Self {
         Self {
             states: vec![state],
+            si_count: 0,
+            so_count: 0,
         }
     }
 
@@ -739,9 +766,11 @@ impl TCStateMachine {
     pub(crate) fn step_into(
         &mut self,
     ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
+        self.si_count += 1;
         if DEBUG_TCSTATE {
-            cprintln!("<cyan>STATE_MACHINE step_into</cyan>");
+            cprintln!("<cyan>STATE_MACHINE step_into #{}</cyan>", self.si_count);
         }
+
         let top = self.pop_state().unwrap();
         let return_result = top.step_into()?;
         match return_result {
@@ -800,9 +829,11 @@ impl TCStateMachine {
     pub(crate) fn step_over(
         &mut self,
     ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
+        self.so_count += 1;
         if DEBUG_TCSTATE {
-            cprintln!("<cyan>STATE_MACHINE step_over</cyan>");
+            cprintln!("<cyan>STATE_MACHINE step_over #{}</cyan>", self.so_count);
         }
+
         let top = self.pop_state().unwrap();
         let return_result = top.step_over()?;
         match return_result {

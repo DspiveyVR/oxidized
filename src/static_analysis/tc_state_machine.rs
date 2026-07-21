@@ -697,6 +697,7 @@ impl TCStateMachine {
         self.step(return_result)
     }
 
+    // probably a bad name idk
     fn step(
         &mut self,
         return_result: (Option<Box<dyn TCState>>, TCReturn),
@@ -704,40 +705,26 @@ impl TCStateMachine {
         match return_result {
             (_, TCReturn::TCResult(result)) => {
                 if let Some(next_top) = self.pop_state() {
-                    let handle_result_state = next_top.handle_result(result)?;
-                    match handle_result_state {
-                        TCReturn::TCResult(result) => {
-                            if let Some(next_top) = self.pop_state() {
-                                let mut prev_result = result.clone();
-                                let mut handle_result_state =
-                                    next_top.handle_result(result.clone())?;
+                    let mut prev_result = result.clone();
+                    let mut handle_result_state = next_top.handle_result(result.clone())?;
 
-                                // Handles cascading calls to exit functions such as gc_fn
-                                loop {
-                                    match handle_result_state {
-                                        TCReturn::TCState(state) => {
-                                            self.push_state(state);
-                                            break Ok((None, None));
-                                        }
-                                        TCReturn::TCResult(next_result) => {
-                                            if self.states.len() > 0 {
-                                                let next_top = self.pop_state().unwrap();
-                                                prev_result = next_result.clone();
-                                                handle_result_state =
-                                                    next_top.handle_result(next_result.clone())?;
-                                            } else {
-                                                break Ok((Some(next_result), Some(prev_result)));
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                Ok((Some(result), None))
+                    // Passes the results of evaluation to their parent expressions.
+                    loop {
+                        match handle_result_state {
+                            TCReturn::TCState(state) => {
+                                self.push_state(state);
+                                break Ok((None, None));
                             }
-                        }
-                        TCReturn::TCState(state) => {
-                            self.push_state(state);
-                            Ok((None, None))
+                            TCReturn::TCResult(next_result) => {
+                                if self.states.len() > 0 {
+                                    let next_top = self.pop_state().unwrap();
+                                    prev_result = next_result.clone();
+                                    handle_result_state =
+                                        next_top.handle_result(next_result.clone())?;
+                                } else {
+                                    break Ok((Some(next_result), Some(prev_result)));
+                                }
+                            }
                         }
                     }
                 } else {

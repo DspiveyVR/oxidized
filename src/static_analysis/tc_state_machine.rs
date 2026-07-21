@@ -6,67 +6,6 @@ use std::fmt::Display;
 const DEBUG_TCSTATE: bool = true;
 const PRINT_STACK: bool = false;
 
-/*
-idk bruh this aint right. it happens on case 21
-
-[3]
-TSeqState { state: (ConcreteTyping {
-    r: [
-        'x -> { unique x },
-        'y -> {  }
-    ]
-     𝜏: [
-         x := u32,
-         y := &'x unique u32
-    ]
- }, ConcreteTyping {
-    r: [
-    ]
-     𝜏: [
-    ]
- }), e1_result: Some((ConcreteTyping {
-    r: [
-        'x -> {  },
-        'y -> {  }
-    ]
-     𝜏: [
-         x := u32,
-        ( y := &'x unique u32)†
-    ]
- }, ())) }
-----------------------
-[[handle_result]]:
-(ConcreteTyping {
-    r: [
-        'x -> {  },
-        'y -> {  },
-        'w -> {  }
-    ]
-     𝜏: [
-        ( z := u32)†,
-        ( y := &'x unique u32)†,
-         z := u32 // did x get replaced with z somehow?
-    ]
- }, ())
-TLetrgnState { state: (ConcreteTyping {
-    r: [
-        'x -> {  },
-        'y -> {  }
-    ]
-     𝜏: [
-         x := u32,
-        ( y := &'x unique u32)†
-    ]
- }, ConcreteTyping {
-    r: [
-    ]
-     𝜏: [
-    ]
- }), e_result: None }
-
-
-*/
-
 pub(crate) enum TCReturn {
     TCResult(TCResult),
     TCState(Box<dyn TCState>),
@@ -99,22 +38,12 @@ pub(crate) trait TCState: Display {
     // NOTE: Results passed in here seem to consistently have unit return types so i'm not sure if the return types could
     // be incorrect coming from some typing rules or if they aren't passed through states properly. May be a non issue.
 
-    fn get_progress(&self) -> TCStateProgress;
-
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping);
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub(crate) enum TCStateProgress {
-    E1Evaluating,
-    E2Evaluating,
-    DoneEvaluating,
 }
 
 pub(crate) struct TExprState {
     e_fn: Option<Box<TCFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
-    progress: TCStateProgress,
 }
 
 impl Display for TExprState {
@@ -133,7 +62,6 @@ pub(crate) struct TLetrgnState {
     pop_vars_fn: Option<Box<TCPopVarsFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     e_result: Option<TCResult>,
-    progress: TCStateProgress,
 }
 
 impl Display for TLetrgnState {
@@ -157,7 +85,6 @@ pub(crate) struct TSeqState {
     e2_fn: Option<Box<TCConsumerFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     e1_result: Option<TCResult>,
-    progress: TCStateProgress,
 }
 
 impl Display for TSeqState {
@@ -184,7 +111,6 @@ pub(crate) struct TLetState {
     env_state: (ConcreteTyping, ConcreteTyping),
     e1_result: Option<TCResult>,
     binding_result: Option<TCResult>,
-    progress: TCStateProgress,
 }
 
 impl Display for TLetState {
@@ -246,10 +172,6 @@ impl TCState for TExprState {
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
     }
-
-    fn get_progress(&self) -> TCStateProgress {
-        self.progress
-    }
 }
 
 impl TExprState {
@@ -262,7 +184,6 @@ impl TExprState {
             TCReturn::TCState(Box::new(Self {
                 e_fn: Some(Box::new(e_fn)),
                 env_state,
-                progress: TCStateProgress::E1Evaluating,
             })),
         ))
     }
@@ -312,10 +233,6 @@ impl TCState for TLetrgnState {
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
     }
-
-    fn get_progress(&self) -> TCStateProgress {
-        self.progress
-    }
 }
 
 impl TLetrgnState {
@@ -334,7 +251,6 @@ impl TLetrgnState {
                 pop_vars_fn: Some(Box::new(pop_vars_fn)),
                 env_state,
                 e_result: None,
-                progress: TCStateProgress::E1Evaluating,
             })),
         ))
     }
@@ -427,10 +343,6 @@ impl TCState for TSeqState {
             }
         }
     }
-
-    fn get_progress(&self) -> TCStateProgress {
-        self.progress
-    }
 }
 
 impl TSeqState {
@@ -449,7 +361,6 @@ impl TSeqState {
                 e2_fn: Some(Box::new(e2_fn)),
                 env_state,
                 e1_result: None,
-                progress: TCStateProgress::E1Evaluating,
             })),
         ))
     }
@@ -606,10 +517,6 @@ impl TCState for TLetState {
             Ok(TCReturn::TCState(self))
         }
     }
-
-    fn get_progress(&self) -> TCStateProgress {
-        self.progress
-    }
 }
 
 impl TLetState {
@@ -635,7 +542,6 @@ impl TLetState {
                 env_state,
                 e1_result: None,
                 binding_result: None,
-                progress: TCStateProgress::E1Evaluating,
             })),
         ))
     }
@@ -773,57 +679,8 @@ impl TCStateMachine {
 
         let top = self.pop_state().unwrap();
         let return_result = top.step_into()?;
-        match return_result {
-            (_, TCReturn::TCResult(result)) => {
-                if let Some(next_top) = self.pop_state() {
-                    let handle_result_state = next_top.handle_result(result)?;
-                    match handle_result_state {
-                        TCReturn::TCResult(result) => {
-                            if let Some(next_top) = self.pop_state() {
-                                let mut prev_result = result.clone();
-                                let mut handle_result_state =
-                                    next_top.handle_result(result.clone())?;
 
-                                // Handles cascading calls to exit functions such as gc_fn
-                                loop {
-                                    match handle_result_state {
-                                        TCReturn::TCState(state) => {
-                                            self.push_state(state);
-                                            break Ok((None, None));
-                                        }
-                                        TCReturn::TCResult(next_result) => {
-                                            if self.states.len() > 0 {
-                                                let next_top = self.pop_state().unwrap();
-                                                prev_result = next_result.clone();
-                                                handle_result_state =
-                                                    next_top.handle_result(next_result.clone())?;
-                                            } else {
-                                                break Ok((Some(next_result), Some(prev_result)));
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                Ok((Some(result), None))
-                            }
-                        }
-                        TCReturn::TCState(state) => {
-                            self.push_state(state);
-                            Ok((None, None))
-                        }
-                    }
-                } else {
-                    Ok((Some(result), None))
-                }
-            }
-            (last_top, TCReturn::TCState(state)) => {
-                if let Some(state) = last_top {
-                    self.push_state(state);
-                }
-                self.push_state(state);
-                Ok((None, None))
-            }
-        }
+        self.step(return_result)
     }
 
     pub(crate) fn step_over(
@@ -836,6 +693,14 @@ impl TCStateMachine {
 
         let top = self.pop_state().unwrap();
         let return_result = top.step_over()?;
+
+        self.step(return_result)
+    }
+
+    fn step(
+        &mut self,
+        return_result: (Option<Box<dyn TCState>>, TCReturn),
+    ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
         match return_result {
             (_, TCReturn::TCResult(result)) => {
                 if let Some(next_top) = self.pop_state() {

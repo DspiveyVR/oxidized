@@ -116,6 +116,18 @@ pub(crate) fn gc_test() -> &'static str {
 }
 
 #[fixture]
+pub(crate) fn gc_test2() -> &'static str {
+    "
+    letrgn<'x> {
+        let mut x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        y;
+        let z: &'x uniq u32 = &'x uniq x; ()
+    }
+    "
+}
+
+#[fixture]
 pub(crate) fn move_ref() -> &'static str {
     "
     letrgn<'x,  'y> {

@@ -28,40 +28,40 @@ fn main() {
 
     let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
     let mut state_machine = TCStateMachine::new(state);
-    let maybe_error = (|| -> Result<(), OxidizedError> {
-        // past 1st 2 lets
-        state_machine.step_into()?;
-        state_machine.step_over()?;
-        state_machine.step_over()?;
+    // let maybe_error = (|| -> Result<(), OxidizedError> {
+    //     // past 1st 2 lets
+    //     state_machine.step_into()?;
+    //     state_machine.step_over()?;
+    //     state_machine.step_over()?;
 
-        // into 2nd letrgn
-        state_machine.step_into()?;
-        state_machine.step_into()?;
+    //     // into 2nd letrgn
+    //     state_machine.step_into()?;
+    //     state_machine.step_into()?;
 
-        // out of 2nd letrgn
-        state_machine.step_over()?;
-        state_machine.step_over()?;
+    //     // out of 2nd letrgn
+    //     state_machine.step_over()?;
+    //     state_machine.step_over()?;
 
-        // // into 3rd letrgn
-        state_machine.step_into()?;
-        state_machine.step_into()?;
+    //     // // into 3rd letrgn
+    //     state_machine.step_into()?;
+    //     state_machine.step_into()?;
 
-        state_machine.step_over()?;
-        state_machine.step_over()?;
+    //     state_machine.step_over()?;
+    //     state_machine.step_over()?;
 
-        Ok(())
-    })();
+    //     Ok(())
+    // })();
 
-    match maybe_error {
-        Ok(_) => println!("{}", state_machine.get_env_state().0),
-        Err(err) => println!("{}", err),
-    }
-
-    // let result = state_machine.evaluate();
-    // match result {
-    //     Ok(val) => println!("{}", val.0),
+    // match maybe_error {
+    //     Ok(_) => println!("{}", state_machine.get_env_state().0),
     //     Err(err) => println!("{}", err),
     // }
+
+    let result = state_machine.evaluate();
+    match result {
+        Ok(val) => println!("{}", val.0),
+        Err(err) => println!("{}", err),
+    }
 }
 
 fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {

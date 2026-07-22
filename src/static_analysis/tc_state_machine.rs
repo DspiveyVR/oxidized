@@ -39,6 +39,8 @@ pub(crate) trait TCState: Display {
     // be incorrect coming from some typing rules or if they aren't passed through states properly. May be a non issue.
 
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping);
+
+    fn get_state_name(&self) -> String;
 }
 
 pub(crate) struct TExprState {
@@ -172,6 +174,10 @@ impl TCState for TExprState {
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
     }
+
+    fn get_state_name(&self) -> String {
+        "Expr".to_string()
+    }
 }
 
 impl TExprState {
@@ -232,6 +238,10 @@ impl TCState for TLetrgnState {
 
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         self.env_state.clone()
+    }
+
+    fn get_state_name(&self) -> String {
+        "Letrgn".to_string()
     }
 }
 
@@ -342,6 +352,10 @@ impl TCState for TSeqState {
                 }
             }
         }
+    }
+
+    fn get_state_name(&self) -> String {
+        "Seq".to_string()
     }
 }
 
@@ -517,6 +531,10 @@ impl TCState for TLetState {
             Ok(TCReturn::TCState(self))
         }
     }
+
+    fn get_state_name(&self) -> String {
+        "Let".to_string()
+    }
 }
 
 impl TLetState {
@@ -632,6 +650,50 @@ impl TCStateMachine {
             }
         }
         panic!("failed to evaluate");
+    }
+
+    pub(crate) fn deep_evaluate(&mut self) -> Vec<(TCResult, String)> {
+        if DEBUG_TCSTATE {
+            cprintln!("<cyan>Eval Begin</cyan>");
+        }
+        let mut results = Vec::new();
+
+        while self.states.len() > 0 {
+            match self.step_into() {
+                Ok((Some(final_result), _)) => {
+                    if DEBUG_TCSTATE {
+                        cprintln!("<cyan>Eval End</cyan>");
+                    }
+                    results.push((final_result, "END".to_string()));
+                    break;
+                }
+                Err(err) => {
+                    if DEBUG_TCSTATE {
+                        cprintln!("<cyan>Eval End</cyan>");
+                    }
+                    results.push((Err(err), "END".to_string()));
+                    break;
+                }
+                _ => {
+                    if let Some(state) = self.states.last() {
+                        let env_state = state.get_env_state();
+                        results.push((Ok((env_state.0, Self::get_unit())), state.get_state_name()));
+                    }
+                }
+            }
+        }
+
+        results
+    }
+
+    // just a placeholder type
+    fn get_unit() -> Type {
+        Type {
+            binding: None,
+            variant: TypeVariant::Base(BaseType::Unit),
+            is_sized: Ternary::Yes,
+            is_dead: Ternary::No,
+        }
     }
 
     // I wanted to be able to return the final and previous values in the eval method but that only works at the last step.

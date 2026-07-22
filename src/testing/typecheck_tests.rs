@@ -40,6 +40,7 @@ fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
 #[case(oxide_programs::copy_to_place2(), 19)]
 #[case(oxide_programs::copy_to_place3(), 20)]
 #[case(oxide_programs::move_to_place2(), 21)]
+#[case(oxide_programs::gc_test2(), 22)]
 fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
@@ -53,11 +54,23 @@ fn full_program(#[case] program: &'static str, #[case] n: u32) {
         insta::assert_snapshot!({
             let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
             let mut state_machine = TCStateMachine::new(state);
-            let result = state_machine.evaluate();
-            match result {
-                Ok(val) => format!("{}", val.0),
-                Err(err) => format!("{}", err),
-            }
+            let results = state_machine.deep_evaluate();
+            results
+                .iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    format!(
+                        "Step {}: {}\n{}\n\n",
+                        i + 1,
+                        r.1,
+                        match &r.0 {
+                            Ok(val) => format!("{}", val.0),
+                            Err(err) => format!("{}", err),
+                        }
+                    )
+                })
+                .collect::<Vec<String>>()
+                .join("")
         })
     });
 }

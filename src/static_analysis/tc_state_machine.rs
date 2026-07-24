@@ -2,6 +2,7 @@ use super::auxiliary::*;
 use super::data_structures::*;
 use color_print::cprintln;
 use std::fmt::Display;
+use std::println;
 
 const DEBUG_TCSTATE: bool = true;
 const PRINT_STACK: bool = false;
@@ -625,7 +626,7 @@ impl TCStateMachine {
         if DEBUG_TCSTATE {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
-        while self.states.len() > 0 {
+        while !self.states.is_empty() {
             match self.step_over() {
                 Ok((Some(final_result), Some(prev_result))) => {
                     if DEBUG_TCSTATE {
@@ -658,7 +659,7 @@ impl TCStateMachine {
         }
         let mut results = Vec::new();
 
-        while self.states.len() > 0 {
+        while !self.states.is_empty() {
             match self.step_into() {
                 Ok((Some(final_result), _)) => {
                     if DEBUG_TCSTATE {

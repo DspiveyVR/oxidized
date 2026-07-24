@@ -244,10 +244,8 @@ pub(crate) fn move_to_place3_err() -> &'static str {
     "
 }
 
-// TODO: I can't figure out if this is supposed to error or not. Seems like it would because gc_loans isn't called (i'm assuming)
-// so then 'y isn't empty when being rewritten into itself, but I'm not sure if the region being empty is a requirement or not.
 #[fixture]
-pub(crate) fn complex_rewrite_err() -> &'static str {
+pub(crate) fn complex_rewrite() -> &'static str {
     "
     letrgn<'x> {
         let x: u32 = 5;

@@ -201,6 +201,73 @@ pub(crate) fn move_to_place2() -> &'static str {
 }
 
 #[fixture]
+pub(crate) fn move_to_place3() -> &'static str {
+    "
+    letrgn<'x> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        letrgn<'y> {
+            y
+        };
+        letrgn<'y> {
+            let z: u32 = 3;
+            let w: &'y uniq u32 = &'y uniq z;
+            letrgn<'z> { 
+                let a: &'x uniq u32 = &'x uniq x;
+                w
+            };
+            let b: &'y uniq u32 = &'y uniq z
+        }  
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn move_to_place3_err() -> &'static str {
+    "
+    letrgn<'x> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        letrgn<'y> {
+            y
+        };
+        letrgn<'y> {
+            let z: u32 = 3;
+            let w: &'y uniq u32 = &'y uniq z;
+            letrgn<'z> { 
+                let a: &'x uniq u32 = &'x uniq x;
+                w
+            };
+            let b: &'y uniq u32 = w
+        }  
+    }
+    "
+}
+
+// TODO: I can't figure out if this is supposed to error or not. Seems like it would because gc_loans isn't called (i'm assuming)
+// so then 'y isn't empty when being rewritten into itself, but I'm not sure if the region being empty is a requirement or not.
+#[fixture]
+pub(crate) fn complex_rewrite_err() -> &'static str {
+    "
+    letrgn<'x> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        letrgn<'y> {
+            y
+        };
+        letrgn<'y> {
+            let z: u32 = 3;
+            let w: &'y uniq u32 = &'y uniq z;
+            letrgn<'z> { 
+                let a: &'x uniq u32 = &'x uniq x;
+                let b: &'y uniq u32 = w
+            }
+        }  
+    }
+    "
+}
+
+#[fixture]
 pub(crate) fn move_to_place_err() -> &'static str {
     "
     letrgn<'x,  'y, 'z> {

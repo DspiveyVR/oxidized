@@ -342,18 +342,10 @@ impl Expression {
                     let mut dead_bound_type = bound_type.clone();
                     dead_bound_type.is_dead = Ternary::Yes;
 
-
-                    println!("BEFORE GC: {}", gamma2.clone());
-
-                    let test = 
-                            gamma2.set_type(bound_type, dead_bound_type);
-
-                    println!("AFTER GC: {}", test.clone());
-
                     Ok((
                         None,
                         TCReturn::TCResult(Ok((
-                            test,
+                            gamma2.set_type(bound_type, dead_bound_type),
                             return_type2,
                         ))),
                     ))

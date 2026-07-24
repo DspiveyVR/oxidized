@@ -1,5 +1,5 @@
 {
   "rust-analyzer.files.watcher": "client",
   "rust-analyzer.diagnostics.enable": false,
-  "rust-analyzer.check.command": "clippy",
+  // "rust-analyzer.check.command": "clippy",
 }

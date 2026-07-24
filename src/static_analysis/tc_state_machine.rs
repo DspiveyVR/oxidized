@@ -661,10 +661,12 @@ impl TCStateMachine {
 
         while !self.states.is_empty() {
             match self.step_into() {
-                Ok((Some(final_result), _)) => {
+                Ok((Some(final_result), Some(prev_result))) => {
                     if DEBUG_TCSTATE {
                         cprintln!("<cyan>Eval End</cyan>");
                     }
+
+                    results.push((prev_result, "PREV".to_string()));
                     results.push((final_result, "END".to_string()));
                     break;
                 }

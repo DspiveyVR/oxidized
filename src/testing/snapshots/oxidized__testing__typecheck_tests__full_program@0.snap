@@ -2,7 +2,7 @@
 source: src/testing/typecheck_tests.rs
 description: "\n    letrgn<'x, 'y> {\n        let mut x: u32 = 5;\n        let y: &'x uniq u32 = &'x uniq x; \n        let z: &'y uniq &'x uniq u32 = &'y uniq y; ()\n    }\n    "
 ---
-Step 1:
+Step 1: Let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -12,7 +12,7 @@ ConcreteTyping {
 	]
  }
 
-Step 2:
+Step 2: Expr
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -22,7 +22,7 @@ ConcreteTyping {
 	]
  }
 
-Step 3:
+Step 3: Let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -32,18 +32,7 @@ ConcreteTyping {
 	]
  }
 
-Step 4:
-ConcreteTyping { 
-	r: [
-		'x -> {  },
-		'y -> {  }
-	]
- 	𝜏: [
-		mut x := u32
-	]
- }
-
-Step 5:
+Step 4: Let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -54,7 +43,7 @@ ConcreteTyping {
 	]
  }
 
-Step 6:
+Step 5: Expr
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -65,7 +54,18 @@ ConcreteTyping {
 	]
  }
 
-Step 7:
+Step 6: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		mut x := u32
+	]
+ }
+
+Step 7: Let
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -77,7 +77,7 @@ ConcreteTyping {
 	]
  }
 
-Step 8:
+Step 8: Expr
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -89,7 +89,7 @@ ConcreteTyping {
 	]
  }
 
-Step 9:
+Step 9: Let
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -101,7 +101,7 @@ ConcreteTyping {
 	]
  }
 
-Step 10:
+Step 10: Expr
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -114,7 +114,20 @@ ConcreteTyping {
 	]
  }
 
-Step 11:
+Step 11: PREV
+ConcreteTyping { 
+	r: [
+		'x -> { unique x },
+		'y -> { unique y }
+	]
+ 	𝜏: [
+		(mut x := u32)†,
+		( y := &'x unique u32)†,
+		( z := &'y unique &'x unique u32)†
+	]
+ }
+
+Step 12: END
 ConcreteTyping { 
 	r: [
 	]

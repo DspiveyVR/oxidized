@@ -2,6 +2,172 @@
 source: src/testing/typecheck_tests.rs
 description: "\n    letrgn<'x,  'y, 'z> {\n        let x: u32 = 5;\n        let y: &'x shrd u32 = &'x shrd x;\n        let z: &'y shrd u32 = y;\n        let w: &'z shrd &'x shrd u32 = &'z shrd y; ()\n    }\n    "
 ---
+Step 1: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 2: Expr
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 3: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 4: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 5: Expr
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 6: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 7: Let
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 8: Expr
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 9: Let
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 10: Let
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> { shared x },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32,
+		 z := &'y shared u32
+	]
+ }
+
+Step 11: Expr
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> { shared x },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32,
+		 z := &'y shared u32
+	]
+ }
+
+Step 12: Let
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> { shared x },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32,
+		 z := &'y shared u32
+	]
+ }
+
+Step 13: Expr
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> { shared x },
+		'z -> { shared y }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32,
+		 z := &'y shared u32,
+		 w := &'z shared &'x shared u32
+	]
+ }
+
+Step 14: PREV
 ConcreteTyping { 
 	r: [
 		'x -> { shared x },
@@ -13,5 +179,13 @@ ConcreteTyping {
 		( y := &'x shared u32)†,
 		( z := &'y shared u32)†,
 		( w := &'z shared &'x shared u32)†
+	]
+ }
+
+Step 15: END
+ConcreteTyping { 
+	r: [
+	]
+ 	𝜏: [
 	]
  }

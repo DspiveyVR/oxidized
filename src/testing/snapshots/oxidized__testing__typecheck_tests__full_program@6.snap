@@ -2,11 +2,102 @@
 source: src/testing/typecheck_tests.rs
 description: "\n    letrgn<'x> {\n        let mut x: u32 = 5;\n        letrgn<'z> {\n            let y: &'z shrd u32 = &'x shrd x; ()\n        }\n    }\n    "
 ---
+Step 1: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 2: Expr
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 3: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 4: Letrgn
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		mut x := u32
+	]
+ }
+
+Step 5: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		mut x := u32
+	]
+ }
+
+Step 6: Expr
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		mut x := u32
+	]
+ }
+
+Step 7: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		mut x := u32
+	]
+ }
+
+Step 8: Expr
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'z -> { shared x }
+	]
+ 	𝜏: [
+		mut x := u32,
+		 y := &'z shared u32
+	]
+ }
+
+Step 9: PREV
 ConcreteTyping { 
 	r: [
 		'x -> {  }
 	]
  	𝜏: [
 		(mut x := u32)†
+	]
+ }
+
+Step 10: END
+ConcreteTyping { 
+	r: [
+	]
+ 	𝜏: [
 	]
  }

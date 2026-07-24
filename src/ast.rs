@@ -55,6 +55,7 @@ pub enum OwnershipQualifier {
     Shrd,
     Uniq,
 }
+
 impl ToString for OwnershipQualifier {
     fn to_string(&self) -> String {
         if *self == OwnershipQualifier::Uniq {

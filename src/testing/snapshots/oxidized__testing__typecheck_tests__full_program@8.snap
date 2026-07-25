@@ -90,4 +90,4 @@ ConcreteTyping {
  }
 
 Step 9: END
-Cannot borrow x uniquely while a unique reference to x exists
+Cannot use x uniquely while a unique reference to x exists

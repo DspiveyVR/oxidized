@@ -44,6 +44,9 @@ fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
 #[case(oxide_programs::move_to_place3(), 23)]
 #[case(oxide_programs::move_to_place3_err(), 24)]
 #[case(oxide_programs::complex_rewrite(), 25)]
+#[case(oxide_programs::uniq_lifetime(), 26)]
+#[case(oxide_programs::move_inner_ref(), 27)]
+#[case(oxide_programs::complex_nesting(), 28)]
 fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 

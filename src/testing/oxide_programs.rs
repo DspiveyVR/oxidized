@@ -332,3 +332,56 @@ pub(crate) fn copy_to_place_usage() -> &'static str {
     }
     "
 }
+
+#[fixture]
+pub(crate) fn uniq_lifetime() -> &'static str {
+    "
+    letrgn<'x> {
+        let x: u32 = 5;
+        letrgn<'y> {
+            let z: &'y uniq u32 = &'y uniq x
+        };
+        let y: &'x uniq u32 = &'x uniq x
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn move_inner_ref() -> &'static str {
+    "
+    letrgn<'x, 'y> {
+        let x: u32 = 5;
+        let a: &'x uniq u32 = &'x uniq x;
+        let b: &'y uniq &'x uniq u32 = &'y uniq a;
+        a
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn complex_nesting() -> &'static str {
+    "
+    letrgn<'x> {
+        let x: u32 = 5;
+        letrgn<'y> {
+            letrgn<'z> {
+                let a: &'z uniq u32 = &'y uniq x;
+                let b: &'z uniq u32 = a
+            };
+            let c: &'y uniq u32 = &'x uniq x
+        };
+        let a: &'x uniq u32 = &'x uniq x;
+        letrgn<'y> {
+            let b: &'y shrd &'x uniq u32 = &'y shrd a;
+            letrgn<'z> {
+                let c: &'z shrd &'x uniq u32 = &'z shrd a;
+                letrgn<'w, 'a> {
+                    let d: &'w shrd &'x uniq u32 = c;
+                    let e: &'a uniq &'w shrd &'x uniq u32 = &'a uniq d
+                }
+            }
+        };
+        let b: &'x uniq u32 = a 
+    }
+    "
+}

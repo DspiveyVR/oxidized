@@ -112,7 +112,7 @@ pub(crate) enum OxidizedError {
     #[error("Cannot borrow with nonexistent region '{0}")]
     NonexistentRegion(String),
     #[error(
-        "Cannot borrow {place} {ownership_qualifier}ly while a {ownership_qualifier2} reference to {place_expression2} exists"
+        "Cannot use {place} {ownership_qualifier}ly while a {ownership_qualifier2} reference to {place_expression2} exists"
     )]
     UnsafePlace {
         place: Place,

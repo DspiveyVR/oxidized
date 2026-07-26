@@ -116,6 +116,23 @@ pub(crate) struct TLetState {
     binding_result: Option<TCResult>,
 }
 
+pub(crate) struct TAssignState {
+    e_fn: Option<Box<TCFn>>,
+    binding_fn: Option<Box<TC2ConsumerFn>>,
+    env_state: (ConcreteTyping, ConcreteTyping),
+}
+
+impl Display for TAssignState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "TAssignState {{ state: ({}, {})}}",
+            self.get_env_state().0,
+            self.get_env_state().1,
+        )
+    }
+}
+
 impl Display for TLetState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -376,6 +393,85 @@ impl TSeqState {
                 e2_fn: Some(Box::new(e2_fn)),
                 env_state,
                 e1_result: None,
+            })),
+        ))
+    }
+}
+
+impl TCState for TAssignState {
+    fn step_into(mut self: Box<Self>) -> TCReturnResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[step_into]]\n{}</red>", self);
+            cprintln!("<yellow>[called]: e_fn()</yellow>");
+        }
+        let mut e_result = (self.e_fn.take().unwrap())()?;
+        e_result.0 = Some(self);
+        Ok(e_result)
+    }
+
+    fn step_over(self: Box<Self>) -> TCReturnResult {
+        self.step_into()
+    }
+
+    fn evaluate(self: Box<Self>) -> TCResult {
+        if DEBUG_TCSTATE {
+            cprintln!("<red>[[evaluate]]\n{}</red>", self);
+        }
+        let mut state_machine = TCStateMachine::new(self);
+        state_machine._evaluate()
+    }
+
+    fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
+        self.env_state.clone()
+    }
+
+    fn handle_result(mut self: Box<Self>, result: TCResult) -> Result<TCReturn, OxidizedError> {
+        if DEBUG_TCSTATE {
+            cprintln!(
+                "<red>[[handle_result]]: \n<white>({}, {})</white>\n{}</red>",
+                result.clone()?.0,
+                result.clone()?.1,
+                self
+            );
+        }
+
+        let result_val = err_if_dead(result)?;
+
+        if DEBUG_TCSTATE {
+            cprintln!(
+                "<yellow>[called]: binding_fn({}, {})</yellow>",
+                result_val.clone().0,
+                result_val.clone().1
+            );
+        }
+        let binding_return_val = (self.binding_fn.take().unwrap())(result_val.0, result_val.1)?;
+        if let TCReturn::TCResult(result) = &binding_return_val.1 {
+            Ok(TCReturn::TCResult(result.clone()))
+        } else {
+            panic!("Unexpected match");
+        }
+    }
+
+    fn get_state_name(&self) -> String {
+        "Assign".to_string()
+    }
+}
+
+impl TAssignState {
+    pub(crate) fn new_obj<
+        TCFn: FnOnce() -> TCReturnResult + 'static,
+        TC2ConsumerFn: FnOnce(ConcreteTyping, Type) -> TCReturnResult + 'static,
+    >(
+        e_fn: TCFn,
+        binding_fn: TC2ConsumerFn,
+        env_state: (ConcreteTyping, ConcreteTyping),
+    ) -> TCReturnResult {
+        Ok((
+            None,
+            TCReturn::TCState(Box::new(Self {
+                e_fn: Some(Box::new(e_fn)),
+                binding_fn: Some(Box::new(binding_fn)),
+                env_state,
             })),
         ))
     }
@@ -680,7 +776,7 @@ impl TCStateMachine {
                 _ => {
                     if let Some(state) = self.states.last() {
                         let env_state = state.get_env_state();
-                        results.push((Ok((env_state.0, Self::get_unit())), state.get_state_name()));
+                        results.push((Ok((env_state.0, get_unit())), state.get_state_name()));
                     }
                 }
             }
@@ -689,15 +785,6 @@ impl TCStateMachine {
         results
     }
 
-    // just a placeholder type
-    fn get_unit() -> Type {
-        Type {
-            binding: None,
-            variant: TypeVariant::Base(BaseType::Unit),
-            is_sized: Ternary::Yes,
-            is_dead: Ternary::No,
-        }
-    }
 
     // I wanted to be able to return the final and previous values in the eval method but that only works at the last step.
     // Since this method is called recursively by the other tc_state methods, returning the previous result multiple times

@@ -385,3 +385,58 @@ pub(crate) fn complex_nesting() -> &'static str {
     }
     "
 }
+
+#[fixture]
+pub(crate) fn primitive_assignment() -> &'static str {
+    "
+    letrgn<'x, 'y> {
+        let mut x: u32 = 5;
+        x = 6
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn primitive_assignment_err() -> &'static str {
+    "
+    letrgn<'x, 'y> {
+        let x: u32 = 5;
+        x = 6
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn assign_under_ref_err() -> &'static str {
+    "
+    letrgn<'x, 'y> {
+        let mut x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        x = 6
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn reassign_ref_err() -> &'static str { // I think this would need NLL to pass
+    "
+    letrgn<'x, 'y> {
+        let x: u32 = 5;
+        let mut y: &'x uniq u32 = &'x uniq x;
+        y = &'y uniq x
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn reassign_ref() -> &'static str { // y not getting properly marked as dead. maybe fix the references displaying the binding
+    "
+    letrgn<'x, 'y> {
+        let x: u32 = 5;
+        let z: u32 = 5;
+        let mut y: &'x uniq u32 = &'x uniq x;
+        y = &'y uniq z;
+        let w: &'x uniq u32 = &'x uniq x
+    }
+    "
+}

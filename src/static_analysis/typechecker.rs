@@ -19,6 +19,7 @@ use super::tc_state_machine::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
+use crate::static_analysis::auxiliary::get_unit;
 
 impl Expression {
     pub(crate) fn typecheck(
@@ -41,6 +42,13 @@ impl Expression {
                     stack_typing,
                     continuation_typing,
                 )
+            }
+            Expression::Assign(ref var, _) => {
+                if let Ok(place) = TryInto::<Place>::try_into((**var).clone()) {
+                    self.t_assign(place, stack_typing, continuation_typing)
+                } else {
+                    panic!("Unexpected error");
+                }
             }
             Expression::Constant(c) => {
                 let st_clone = stack_typing.clone();
@@ -266,6 +274,68 @@ impl Expression {
         )
     }
 
+    fn t_assign(
+        self,
+        place: Place,
+        stack_typing: ConcreteTyping,
+        continuation_typing: ConcreteTyping,
+    ) -> TCReturnResult {
+        if let Expression::Assign(_, e) = self {
+            let st_clone = stack_typing.clone();
+            let ct_clone = continuation_typing.clone();
+            let ct_clone2 = continuation_typing.clone();
+            TAssignState::new_obj(
+                move || e.typecheck(st_clone, ct_clone),
+                move |gamma1: ConcreteTyping, return_type: Type| {
+                    let place_type = gamma1.type_lookup(place.clone().into())?;
+                    if !return_type.eq_unchecked_regions(&place_type) {
+                        return Err(OxidizedError::MismatchedTypes {
+                            expected: place_type,
+                            found: return_type,
+                        });
+                    }
+
+                    // TODO: kill rules
+
+                    // TODO: Is unique restriction. At the moment I can't really figure out a scenario that would violate this condition
+                    // so for now I'll just not implement it.
+
+                    gamma1.rewrite_regions(
+                        return_type.clone(),
+                        place_type.clone(),
+                        RegionRewriteMode::Equals,
+                    )?;
+
+                    if !place_type.binding.as_ref().unwrap().is_mut {
+                        return Err(OxidizedError::NoMutAnnotation(place_type.binding.unwrap().variable));
+                    }
+
+                    if let Err(err) =
+                        gamma1.o_safe_place(ct_clone2, place, OwnershipQualifier::Uniq)
+                    {
+                        if place_type.is_dead != Ternary::Yes {
+                            return Err(err);
+                        }
+                    }
+
+                    let mut bound_type = return_type.clone();
+                    bound_type.binding = place_type.clone().binding;
+
+                    Ok((
+                        None,
+                        TCReturn::TCResult(Ok((
+                            gamma1.set_type(place_type.clone(), bound_type),
+                            get_unit(),
+                        ))),
+                    ))
+                },
+                (stack_typing.clone(), continuation_typing.clone()),
+            )
+        } else {
+            panic!("Unexpected error");
+        }
+    }
+
     fn t_seq(
         self,
         stack_typing: ConcreteTyping,
@@ -443,7 +513,43 @@ impl ConcreteTyping {
     ) -> Result<Self, OxidizedError> {
         match mode {
             RegionRewriteMode::Plus => self.ol_combine_concrete(region1, region2),
+            RegionRewriteMode::Equals => self.ol_check_concrete(region1, region2),
         }
+    }
+
+    fn ol_check_concrete(
+        &self,
+        region1: ConcreteRegion,
+        region2: ConcreteRegion,
+    ) -> Result<Self, OxidizedError> {
+        if !(self.rnrb(region1.clone()) && self.rnrb(region2.clone())) {
+            return Err(OxidizedError::ConcreteOutlivesError(
+                region1.clone(),
+                region2.clone(),
+            ));
+        }
+        if !(self
+            .regions
+            .0
+            .iter()
+            .find(|r| r.name == region1.name)
+            .unwrap()
+            .scope
+            <= self
+                .regions
+                .0
+                .iter()
+                .find(|r| r.name == region2.name)
+                .unwrap()
+                .scope)
+        {
+            return Err(OxidizedError::ConcreteOutlivesError(
+                region1.clone(),
+                region2.clone(),
+            ));
+        }
+
+        Ok(self.clone())
     }
 
     // TODO: closure restriction rule

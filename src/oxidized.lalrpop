@@ -9,7 +9,7 @@ pub Expr: Box<Expression> = {
     #[precedence(level="0")]
     ConstantValue => Box::new(Expression::Constant(<>)),
     LvalueBase,
-    <e: LvalueBase> <p: Path> => Box::new(Expression::PathAccess(e, p)),
+    PathAccess,
     #[precedence(level="1")] #[assoc(side="left")]
     "(" <csv: ExprCSV> ")" => Box::new(Expression::CSV(csv)),
     #[precedence(level="1")] #[assoc(side="right")]
@@ -23,11 +23,19 @@ pub Expr: Box<Expression> = {
             type_annotation: typ,
             e
         }),
+    <var: LvalueBase> "=" <e: Expr> => Box::new(Expression::Assign(var, e)),
     Letrgn,
     #[precedence(level="3")] #[assoc(side="right")] // Needs to be right associative for gc loans to work.
     <e1: Expr> ";" <e2: Expr> => Box::new(Expression::Sequence(e1, e2)),
 };
 
+PathAccess: Box<Expression> = {
+    <e: LvalueBase> <p: Path> => Box::new(Expression::PathAccess(e, p)),
+};
+
+// Deref: Box<Expression> = { causes error because idk
+//     "*" <e: Expr> => Box::new(Expression::Deref(e)),
+// };
 
 Letrgn: Box<Expression> = {
     "letrgn" "<" <regions: RegionCSV> ">" "{" <e: Expr> "}" => Box::new(Expression::Letrgn(regions, e)),

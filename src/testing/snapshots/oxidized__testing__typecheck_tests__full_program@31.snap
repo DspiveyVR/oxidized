@@ -1,0 +1,93 @@
+---
+source: src/testing/typecheck_tests.rs
+description: "\n    letrgn<'x, 'y> {\n        let x: u32 = 5;\n        let mut y: &'x uniq u32 = &'x uniq x;\n        y = &'y uniq x\n    }\n    "
+---
+Step 1: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 2: Expr
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 3: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 4: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 5: Expr
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 6: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 7: Assign
+ConcreteTyping { 
+	r: [
+		'x -> { unique x },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		mut y := &'x unique u32
+	]
+ }
+
+Step 8: Expr
+ConcreteTyping { 
+	r: [
+		'x -> { unique x },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		mut y := &'x unique u32
+	]
+ }
+
+Step 9: END
+Cannot use x uniquely while a unique reference to x exists

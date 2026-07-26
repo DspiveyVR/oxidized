@@ -91,7 +91,7 @@ pub(crate) struct Loan {
 #[derive(Serialize, Debug, Clone)]
 pub(crate) enum RegionRewriteMode {
     Plus,
-    // Equals,
+    Equals,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -120,6 +120,8 @@ pub(crate) enum OxidizedError {
         place_expression2: PlaceExpression,
         ownership_qualifier2: String,
     },
+    #[error("Cannot mutate immutable variable {0}")]
+    NoMutAnnotation(String),
     #[error("{0} is not a valid place expression")]
     InvalidPlaceExpression(Expression),
     #[error("{0} is not a valid place")]

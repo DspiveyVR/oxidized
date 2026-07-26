@@ -47,6 +47,11 @@ fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
 #[case(oxide_programs::uniq_lifetime(), 26)]
 #[case(oxide_programs::move_inner_ref(), 27)]
 #[case(oxide_programs::complex_nesting(), 28)]
+#[case(oxide_programs::primitive_assignment(), 29)]
+#[case(oxide_programs::assign_under_ref_err(), 30)]
+#[case(oxide_programs::reassign_ref_err(), 31)]
+#[case(oxide_programs::reassign_ref(), 32)]
+#[case(oxide_programs::primitive_assignment(), 33)]
 fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 

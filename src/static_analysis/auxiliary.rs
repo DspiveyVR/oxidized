@@ -156,3 +156,12 @@ pub(crate) fn err_if_dead(
         res
     }
 }
+
+pub(crate) fn get_unit() -> Type {
+    Type {
+        binding: None,
+        variant: TypeVariant::Base(BaseType::Unit),
+        is_sized: Ternary::Yes,
+        is_dead: Ternary::No,
+    }
+}

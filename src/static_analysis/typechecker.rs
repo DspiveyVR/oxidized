@@ -199,7 +199,8 @@ impl Expression {
                         ref_annotation.1,
                     )?;
 
-                    let place_expression_type = stack_typing.type_lookup(place_expression)?;
+                    let mut place_expression_type = stack_typing.type_lookup(place_expression)?;
+                    place_expression_type.binding = None;
 
                     let ref_type = Type {
                         binding: None,
@@ -307,7 +308,9 @@ impl Expression {
                     )?;
 
                     if !place_type.binding.as_ref().unwrap().is_mut {
-                        return Err(OxidizedError::NoMutAnnotation(place_type.binding.unwrap().variable));
+                        return Err(OxidizedError::NoMutAnnotation(
+                            place_type.binding.unwrap().variable,
+                        ));
                     }
 
                     if let Err(err) =

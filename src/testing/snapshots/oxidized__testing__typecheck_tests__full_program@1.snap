@@ -90,4 +90,4 @@ ConcreteTyping {
  }
 
 Step 9: END
-Expected &'y unique u32 found &'y unique  y := &'x unique u32
+Expected &'y unique u32 found &'y unique &'x unique u32

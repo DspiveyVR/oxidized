@@ -429,7 +429,7 @@ pub(crate) fn reassign_ref_err() -> &'static str { // I think this would need NL
 }
 
 #[fixture]
-pub(crate) fn reassign_ref() -> &'static str { // y not getting properly marked as dead. maybe fix the references displaying the binding
+pub(crate) fn reassign_ref() -> &'static str {
     "
     letrgn<'x, 'y> {
         let x: u32 = 5;
@@ -437,6 +437,20 @@ pub(crate) fn reassign_ref() -> &'static str { // y not getting properly marked 
         let mut y: &'x uniq u32 = &'x uniq x;
         y = &'y uniq z;
         let w: &'x uniq u32 = &'x uniq x
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn dangling_ref_err() -> &'static str { // TODO: need well formedness rule to prevent this from passing
+    "
+    letrgn<'x, 'y> {
+        let x: u32 = 5;
+        let mut y: &'x uniq u32 = &'x uniq x;
+        letrgn<'z> {
+            let z: u32 = 5;
+            y = &'y uniq z; ()
+        }; ()
     }
     "
 }

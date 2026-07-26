@@ -12,15 +12,12 @@ lalrpop_mod!(pub oxidized);
 
 fn main() {
     let program = "
-    letrgn<'x,  'y> {
+    letrgn<'x, 'y> {
         let x: u32 = 5;
-        let y: &'x uniq u32 = &'x uniq x;
-        letrgn<'z> {
-            y; ()
-        };  
-        letrgn<'w> {
-            let z: u32 = 3; ()
-        }  
+        let z: u32 = 5;
+        let mut y: &'x uniq u32 = &'x uniq x;
+        y = &'y uniq z;
+        let w: &'x uniq u32 = &'x uniq x
     }
     ";
     let ast = oxidized::ExprParser::new().parse(program).unwrap();

@@ -605,8 +605,13 @@ impl TCState for TLetState {
                     binding_result_val.clone().1
                 );
             }
+            // It is possible that the type originally bound was reassigned before the gc_fn was called.
+            let current_bound_type = result_val
+                .0
+                .clone()
+                .type_lookup(PlaceExpression::Variable(binding_result_val.1.binding.unwrap().variable))?;
             let gc_return_val =
-                (self.gc_fn.take().unwrap())(result_val.0, result_val.1, binding_result_val.1)?;
+                (self.gc_fn.take().unwrap())(result_val.0, result_val.1, current_bound_type)?;
             Ok(gc_return_val.1)
         } else {
             self.e1_result = Some(result.clone());
@@ -784,7 +789,6 @@ impl TCStateMachine {
 
         results
     }
-
 
     // I wanted to be able to return the final and previous values in the eval method but that only works at the last step.
     // Since this method is called recursively by the other tc_state methods, returning the previous result multiple times

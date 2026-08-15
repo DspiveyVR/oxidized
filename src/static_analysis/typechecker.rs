@@ -266,6 +266,23 @@ impl Expression {
                     types: VecSet((env.types.0[..stack_typing.types.0.len()]).to_vec()),
                 };
 
+                // Similar to one part of the WF-StackTyping rule. The accuracy of this compared to the paper is questionable.
+                for region in &new_stack_typing.regions.0 {
+                    for loan in &region.loans.0 {
+                        match env.type_lookup(loan.place_expression.clone()) {
+                            Ok(typ) => {
+                                if typ.clone().is_dead != Ternary::No {
+                                    return Err(OxidizedError::LifetimeError(
+                                        typ,
+                                        region.name.clone(),
+                                    ));
+                                }
+                            }
+                            Err(err) => return Err(err),
+                        }
+                    }
+                }
+
                 Ok((
                     None,
                     TCReturn::TCResult(Ok((new_stack_typing, return_type))),

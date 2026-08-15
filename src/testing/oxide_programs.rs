@@ -442,7 +442,7 @@ pub(crate) fn reassign_ref() -> &'static str {
 }
 
 #[fixture]
-pub(crate) fn dangling_ref_err() -> &'static str { // TODO: need well formedness rule to prevent this from passing
+pub(crate) fn dangling_ref_err() -> &'static str {
     "
     letrgn<'x, 'y> {
         let x: u32 = 5;

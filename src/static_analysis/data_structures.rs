@@ -111,6 +111,8 @@ pub(crate) enum OxidizedError {
     NonemptyRegion(String, VecSet<Loan>),
     #[error("Cannot borrow with nonexistent region '{0}")]
     NonexistentRegion(String),
+    #[error("{0} must outlive region '{1}")]
+    LifetimeError(Type, String),
     #[error(
         "Cannot use {place} {ownership_qualifier}ly while a {ownership_qualifier2} reference to {place_expression2} exists"
     )]

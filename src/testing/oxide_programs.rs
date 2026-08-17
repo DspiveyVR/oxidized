@@ -454,3 +454,38 @@ pub(crate) fn dangling_ref_err() -> &'static str {
     }
     "
 }
+
+#[fixture]
+pub(crate) fn dangling_ref_err2() -> &'static str {
+    "
+    letrgn<'x, 'y, 'w> {
+        let x: u32 = 5;
+        let w: u32 = 5;
+        let mut y: &'x uniq u32 = &'x uniq x;
+        letrgn<'z> {
+            let z: u32 = 5;
+            y = &'y uniq z; 
+            y = &'w uniq w
+        }; ()
+    }
+    "
+}
+
+#[fixture]
+pub(crate) fn weird_rr() -> &'static str {
+    "
+    letrgn<'x, 'y> {
+        let x: u32 = 5;
+        let mut y: &'x uniq &'y uniq u32 = &'y uniq &'x uniq x
+    "
+}
+
+// #[fixture]
+// pub(crate) fn primitive_assignment() -> &'static str {
+//     "
+//     letrgn<'x, 'y> {
+//         let mut x: u32 = 5;
+//         x = 6
+//     }
+//     "
+// }

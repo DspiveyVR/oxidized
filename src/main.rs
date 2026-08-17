@@ -3,10 +3,11 @@ mod debugging;
 mod static_analysis;
 mod testing;
 
-use crate::static_analysis::tc_state_machine::*;
+use std::println;
+
 use lalrpop_util::lalrpop_mod;
 
-use crate::static_analysis::data_structures::*;
+use crate::{ast::OwnershipQualifier, static_analysis::data_structures::*};
 
 lalrpop_mod!(pub oxidized);
 
@@ -23,8 +24,13 @@ fn main() {
     let ast = oxidized::ExprParser::new().parse(program).unwrap();
     println!("{}", ast);
 
-    let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
-    let mut state_machine = TCStateMachine::new(state);
+    // let mut a = 5;
+    // let b = &&mut a;
+    // let c = *b;
+    // c;
+
+    // let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
+    // let mut state_machine = TCStateMachine::new(state);
     // let maybe_error = (|| -> Result<(), OxidizedError> {
     //     // past 1st 2 lets
     //     state_machine.step_into()?;
@@ -54,19 +60,19 @@ fn main() {
     //     Err(err) => println!("{}", err),
     // }
 
-    let result = state_machine.evaluate();
-    match result {
-        Ok(val) => println!("{}", val.0),
-        Err(err) => println!("{}", err),
-    }
+    // let result = state_machine.evaluate();
+    // match result {
+    //     Ok(val) => println!("{}", val.0),
+    //     Err(err) => println!("{}", err),
+    // }
 }
 
-fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
-    match result {
-        Ok(result) => match result.1 {
-            TCReturn::TCResult(_) => todo!(),
-            TCReturn::TCState(state) => state,
-        },
-        Err(_) => todo!(),
-    }
-}
+// fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
+//     match result {
+//         Ok(result) => match result.1 {
+//             TCReturn::TCResult(_) => todo!(),
+//             TCReturn::TCState(state) => state,
+//         },
+//         Err(_) => todo!(),
+//     }
+// }

@@ -484,7 +484,11 @@ impl Type {
             PlaceExpression::Deref(inner_pe) => {
                 let inner_type = self.walk((*inner_pe).clone())?;
                 if let TypeVariant::Reference(ref_type) = inner_type.variant.clone() {
-                    Ok(*ref_type.target_type)
+                    let target_type = *ref_type.target_type;
+
+                    // TODO: <= ord check
+
+                    Ok(target_type)
                 } else {
                     Err(OxidizedError::CannotDereference(inner_type.clone()))
                 }
@@ -591,6 +595,19 @@ impl PlaceExpression {
                 place_expression.get_inner_variable()
             }
             PlaceExpression::Variable(var) => var.to_string(),
+        }
+    }
+}
+
+impl PartialOrd for OwnershipQualifier {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (OwnershipQualifier::Shrd, OwnershipQualifier::Shrd) => Some(std::cmp::Ordering::Equal),
+            (OwnershipQualifier::Shrd, OwnershipQualifier::Uniq) => Some(std::cmp::Ordering::Less),
+            (OwnershipQualifier::Uniq, OwnershipQualifier::Shrd) => {
+                Some(std::cmp::Ordering::Greater)
+            }
+            (OwnershipQualifier::Uniq, OwnershipQualifier::Uniq) => Some(std::cmp::Ordering::Equal),
         }
     }
 }

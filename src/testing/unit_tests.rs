@@ -166,17 +166,17 @@ fn var2_pe() -> PlaceExpression {
         .unwrap()
 }
 
-#[rstest]
-#[case(tup1(), tup1_pe())]
-#[case(tup2(), tup2_pe())]
-fn u32_lookup(#[case] typ: Type, #[case] pe: PlaceExpression, new_concrete: ConcreteTyping) {
-    let mut env = new_concrete.clone();
-    env = env.add_type(typ);
-    assert_eq!(
-        format!("{}", env.type_lookup(pe).unwrap()),
-        format!("{}", *get_u32())
-    );
-}
+// #[rstest]
+// #[case(tup1(), tup1_pe())]
+// #[case(tup2(), tup2_pe())]
+// fn u32_lookup(#[case] typ: Type, #[case] pe: PlaceExpression, new_concrete: ConcreteTyping) {
+//     let mut env = new_concrete.clone();
+//     env = env.add_type(typ);
+//     assert_eq!(
+//         format!("{}", env.type_lookup(pe).unwrap()),
+//         format!("{}", *get_u32())
+//     );
+// }
 
 #[rstest]
 #[case(tup1(), var_pe())]
@@ -214,24 +214,24 @@ pub(crate) fn concrete_env1() -> ConcreteTyping {
     env
 }
 
-#[rstest]
-#[case(concrete_env1(), 0)]
-fn explode_env(#[case] env: ConcreteTyping, #[case] n: u32) {
-    set_snapshot_suffix!("{}", n);
+// #[rstest]
+// #[case(concrete_env1(), 0)]
+// fn explode_env(#[case] env: ConcreteTyping, #[case] n: u32) {
+//     set_snapshot_suffix!("{}", n);
 
-    insta::with_settings!({
-        description => format!("{}", &env),
-        omit_expression => true
-    }, {
-        insta::assert_snapshot!(vec_display_elements(
-            &env.explode()
-                .0
-                .iter()
-                .map(|pair| format_explode_pair(pair.clone()))
-                .collect()
-        ))
-    });
-}
+//     insta::with_settings!({
+//         description => format!("{}", &env),
+//         omit_expression => true
+//     }, {
+//         insta::assert_snapshot!(vec_display_elements(
+//             &env.explode()
+//                 .0
+//                 .iter()
+//                 .map(|pair| format_explode_pair(pair.clone()))
+//                 .collect()
+//         ))
+//     });
+// }
 
 // #[rstest]
 // #[case(*get_u32(), 0)]

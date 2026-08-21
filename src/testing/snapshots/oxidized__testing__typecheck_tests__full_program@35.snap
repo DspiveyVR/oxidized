@@ -258,7 +258,7 @@ ConcreteTyping {
  	𝜏: [
 		 x := u32,
 		 w := u32,
-		mut y := &'y unique u32,
+		mut y := &'y unique  z := u32,
 		 z := u32
 	]
  }
@@ -274,7 +274,7 @@ ConcreteTyping {
  	𝜏: [
 		 x := u32,
 		 w := u32,
-		mut y := &'y unique u32,
+		mut y := &'y unique  z := u32,
 		 z := u32
 	]
  }

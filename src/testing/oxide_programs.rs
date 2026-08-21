@@ -471,21 +471,22 @@ pub(crate) fn dangling_ref_err2() -> &'static str {
     "
 }
 
+// #[fixture]
+// pub(crate) fn weird_rr() -> &'static str {
+//     "
+//     letrgn<'x, 'y> {
+//         let x: u32 = 5;
+//         let mut y: &'x uniq &'y uniq u32 = &'y uniq &'x uniq x
+//     "
+// }
+
 #[fixture]
-pub(crate) fn weird_rr() -> &'static str {
+pub(crate) fn basic_deref() -> &'static str {
     "
     letrgn<'x, 'y> {
         let x: u32 = 5;
-        let mut y: &'x uniq &'y uniq u32 = &'y uniq &'x uniq x
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: u32 = *y
+    }
     "
 }
-
-// #[fixture]
-// pub(crate) fn primitive_assignment() -> &'static str {
-//     "
-//     letrgn<'x, 'y> {
-//         let mut x: u32 = 5;
-//         x = 6
-//     }
-//     "
-// }

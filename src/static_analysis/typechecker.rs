@@ -1,3 +1,5 @@
+use std::vec;
+
 /*
 
 tuples are the only thing that need to add any types to the cont typing (for now).  return types of individual expressions are not
@@ -13,7 +15,6 @@ there's a little more to the regions() metafunction than just accessing the regi
 in the cont typing.  probably can forget about it for now.
 
 */
-
 use super::data_structures::*;
 use super::tc_state_machine::*;
 use crate::ast::Constant;
@@ -94,7 +95,7 @@ impl Expression {
         continuation_typing: ConcreteTyping,
     ) -> TCReturnResult {
         let found_type = stack_typing.type_lookup(place_expression.clone())?;
-        if found_type.is_dead != Ternary::No {
+        if found_type.is_dead == Ternary::Yes {
             return Err(OxidizedError::UseOfMovedValue(found_type));
         }
         if found_type.copyable() {
@@ -104,11 +105,15 @@ impl Expression {
                 continuation_typing,
             )
         } else {
-            if let Ok(place) = place_expression.try_into() {
-                Self::t_move(place, found_type, stack_typing, continuation_typing)
-            } else {
-                Err(OxidizedError::CannotMove(found_type))
-            }
+            Self::t_move(
+                Place {
+                    variable: found_type.clone().binding.unwrap().variable,
+                    path: None,
+                },
+                found_type,
+                stack_typing,
+                continuation_typing,
+            )
         }
     }
 
@@ -199,8 +204,7 @@ impl Expression {
                         ref_annotation.1,
                     )?;
 
-                    let mut place_expression_type = stack_typing.type_lookup(place_expression)?;
-                    place_expression_type.binding = None;
+                    let place_expression_type = stack_typing.type_lookup(place_expression)?;
 
                     let ref_type = Type {
                         binding: None,

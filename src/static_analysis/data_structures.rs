@@ -1,6 +1,6 @@
 use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
 use serde::Serialize;
-use std::{fmt::Debug, vec};
+use std::{fmt::Debug, todo, vec};
 // use color_print;
 use thiserror::Error;
 
@@ -103,8 +103,8 @@ pub(crate) enum OxidizedError {
     RegionNameConflict(String),
     #[error("Type {0} is dead")]
     UseOfMovedValue(Type),
-    #[error("Cannot move {0} out of ...")]
-    CannotMove(Type), // TODO: 2nd type will be parent
+    #[error("Cannot move out of {0} while it is behind a shared reference")] 
+    CannotMove(Type),
     #[error("Region {0} must outlive region {1}")]
     ConcreteOutlivesError(ConcreteRegion, ConcreteRegion),
     #[error("Cannot borrow with nonempty region '{0} containing loans: {1}")]
@@ -486,7 +486,10 @@ impl Type {
                 if let TypeVariant::Reference(ref_type) = inner_type.variant.clone() {
                     let target_type = *ref_type.target_type;
 
-                    // TODO: <= ord check
+                    // In theory should be equivalent to the 𝜔 ≲ 𝜔′ restriction in TC-Deref
+                    if !target_type.copyable() && ref_type.ownership_qualifier == OwnershipQualifier::Shrd {
+                        return Err(OxidizedError::CannotMove(target_type));
+                    }
 
                     Ok(target_type)
                 } else {
@@ -494,10 +497,11 @@ impl Type {
                 }
             }
             PlaceExpression::PathAccess(inner_pe, path) => {
-                let accessed_type = self.walk(*inner_pe)?;
-                accessed_type.walk_tuple(&path[..])
+                todo!()
+                // let accessed_type = self.walk(*inner_pe)?;
+                // accessed_type.walk_tuple(&path[..])
             }
-            PlaceExpression::Variable(_) => Ok(self.clone()),
+            PlaceExpression::Variable(var) => Ok(self.clone()),
         }
     }
 

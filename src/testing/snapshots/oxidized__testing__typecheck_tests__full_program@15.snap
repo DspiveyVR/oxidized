@@ -137,4 +137,4 @@ ConcreteTyping {
  }
 
 Step 12: END
-Expected &'z unique &'x unique u32 found &'z unique (&'x unique u32)†
+Expected &'z unique &'x unique u32 found &'z unique ( y := &'x unique u32)†

@@ -490,3 +490,14 @@ pub(crate) fn basic_deref() -> &'static str {
     }
     "
 }
+
+#[fixture]
+pub(crate) fn reborrow() -> &'static str {
+    "
+    letrgn<'x, 'y> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: &'y uniq u32 = *y
+    }
+    "
+}

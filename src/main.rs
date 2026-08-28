@@ -25,8 +25,9 @@ fn main() {
     println!("{}", ast);
 
     // let mut a = 5;
-    // let b = &&mut a;
-    // let c = *b;
+    // let b = &mut a;
+    // let c = &mut *b;
+    // let d =  b;
     // c;
 
     // let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));

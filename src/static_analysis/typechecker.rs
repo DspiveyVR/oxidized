@@ -1,3 +1,5 @@
+use core::panic;
+use std::todo;
 use std::vec;
 
 /*
@@ -14,6 +16,10 @@ FIXME:
 there's a little more to the regions() metafunction than just accessing the regions.  this will be important for getting the regions
 in the cont typing.  probably can forget about it for now.
 
+TODO: see if theres a way to get rid of the unexpected match conditions so that it is logically impossible according to the type system.
+TODO: probably need some better ways to pattern match places/place expressions
+TODO: better new, get, and set methods for various types. prob could use some helper methods in general
+
 */
 use super::data_structures::*;
 use super::tc_state_machine::*;
@@ -21,6 +27,7 @@ use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
 use crate::static_analysis::auxiliary::get_unit;
+use crate::static_analysis::data_structures::PlaceExpression::Deref;
 
 impl Expression {
     pub(crate) fn typecheck(
@@ -466,8 +473,77 @@ impl ConcreteTyping {
             self.o_safe_place(continuation_typing, place, ownership_qualifier)
         } else {
             match place_expression {
-                _ => panic!("Unexpected error"),
+                _ => todo!(),
             }
+        }
+    }
+
+    /*
+       for o-deref it seems like i need to first do a type computation, then go through each layer of references and their loan sets
+       to add to the reborrow exclusion list. I'm not sure if the entirety of the rule is applied for each layer of dereferencing or just
+       the last one. Seems like the exclusion list needs to be built first and then the last stage appends to the list and does all the
+       checks based on it but it's hard to say.
+    */
+
+    fn o_deref(
+        &self,
+        continuation_typing: Self,
+        place_expression: PlaceExpression,
+        ownership_qualifier: OwnershipQualifier,
+        reborrow_exclusion_list: VecSet<Place>,
+    ) -> Result<VecSet<Loan>, OxidizedError> {
+        match place_expression {
+            PlaceExpression::Deref(place_expression) => {
+                if let Ok(place) = TryInto::<Place>::try_into((*place_expression).clone()) {
+                    let reference = self.type_lookup(*place_expression)?;
+                    match reference.variant {
+                        TypeVariant::Reference(reference_type) => {
+                            if ownership_qualifier > reference_type.ownership_qualifier {
+                                return Err(OxidizedError::CannotMove(*reference_type.target_type));
+                            }
+                            let region = self.get_region(reference_type.region_name)?;
+                            let loans = region.loans;
+                            let excl = VecSet(
+                                loans
+                                    .0
+                                    .iter()
+                                    .filter_map(|l| {
+                                        if let Deref(place_expression) = l.place_expression.clone()
+                                        {
+                                            if let Ok(place) = (*place_expression).try_into() {
+                                                Some(place)
+                                            } else {
+                                                panic!("Unexpected match");
+                                            }
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect::<Vec<Place>>(),
+                            );
+
+                            // union the excl list stuff at the end.
+
+                            // FIXME: not adding the conditions yet, just working on the excl list
+
+                            self.o_safe_place(
+                                continuation_typing,
+                                place.clone(),
+                                ownership_qualifier,
+                                reborrow_exclusion_list
+                                    .union(excl)
+                                    .union(VecSet(vec![place])),
+                            )
+                        }
+                        _ => panic!("Unexpected match"),
+                    }
+                } else {
+                    match place_expression {
+                        _ => todo!(),
+                    }
+                }
+            }
+            _ => panic!("Unexpected match"),
         }
     }
 
@@ -476,6 +552,7 @@ impl ConcreteTyping {
         continuation_typing: Self,
         place: Place,
         ownership_qualifier: OwnershipQualifier,
+        reborrow_exclusion_list: VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let converted_place = place.clone().into();
         for region in self.regions.union(continuation_typing.regions).0 {

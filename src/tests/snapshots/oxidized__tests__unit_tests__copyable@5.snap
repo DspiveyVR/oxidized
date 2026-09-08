@@ -1,0 +1,5 @@
+---
+source: src/tests/unit_tests.rs
+description: "&'a shared  var := (u32, (u32, u32)) is copyable"
+---
+true

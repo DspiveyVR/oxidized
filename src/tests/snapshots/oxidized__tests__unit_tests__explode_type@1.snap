@@ -1,0 +1,5 @@
+---
+source: src/tests/unit_tests.rs
+expression: vec_display_elements(&typ.explode().0)
+---
+[u32]

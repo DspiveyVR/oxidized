@@ -10,9 +10,7 @@ impl Display for ConcreteTyping {
             .regions
             .0
             .iter()
-            .fold("".to_string(), |a, e| {
-                format!("{},\n\t\t{}", a, e)
-            })
+            .fold("".to_string(), |a, e| format!("{},\n\t\t{}", a, e))
             .get(1..)
             .unwrap_or("")
             .to_string();
@@ -103,9 +101,10 @@ impl Display for Loan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} {}",
+            "{} {}{}",
             self.ownership_qualifier.to_string(),
-            self.place_expression
+            if self.is_reborrow { "*" } else { "" },
+            self.place
         )
     }
 }
@@ -117,15 +116,23 @@ impl Display for PlaceExpression {
             PlaceExpression::PathAccess(place_expression, path) => {
                 write!(f, "({}){}", place_expression, path_to_string(path))
             }
-            PlaceExpression::Variable(var) => write!(f, "{}", var),
+            PlaceExpression::Place(place) => write!(f, "{}", place),
         }
     }
 }
 
 impl Display for Place {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let place: PlaceExpression = (*self).clone().into();
-        write!(f, "{}", place)
+        write!(
+            f,
+            "{}{}",
+            self.variable,
+            if self.path.len() > 0 {
+                path_to_string(&self.path)
+            } else {
+                "".to_string()
+            }
+        )
     }
 }
 

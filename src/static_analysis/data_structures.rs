@@ -23,7 +23,7 @@ pub(crate) struct Type {
 pub(crate) enum PlaceExpression {
     Deref(Box<PlaceExpression>),
     PathAccess(Box<PlaceExpression>, Vec<u32>),
-    Variable(String),
+    Place(Place),
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -35,7 +35,7 @@ pub(crate) struct Binding {
 #[derive(Serialize, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct Place {
     pub(crate) variable: String,
-    pub(crate) path: Option<Vec<u32>>,
+    pub(crate) path: Vec<u32>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -85,7 +85,8 @@ pub(crate) struct ConcreteRegion {
 #[derive(Serialize, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct Loan {
     pub(crate) ownership_qualifier: OwnershipQualifier,
-    pub(crate) place_expression: PlaceExpression,
+    pub(crate) place: Place,
+    pub(crate) is_reborrow: bool,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -103,7 +104,7 @@ pub(crate) enum OxidizedError {
     RegionNameConflict(String),
     #[error("Type {0} is dead")]
     UseOfMovedValue(Type),
-    #[error("Cannot move out of {0} while it is behind a shared reference")] 
+    #[error("Cannot move out of {0} while it is behind a shared reference")]
     CannotMove(Type),
     #[error("Region {0} must outlive region {1}")]
     ConcreteOutlivesError(ConcreteRegion, ConcreteRegion),
@@ -214,19 +215,6 @@ impl ConcreteTyping {
         }
     }
 
-    // pub(crate) fn set_type(&self, place: Place, t: Type) -> Result<Self, OxidizedError> {
-    //     let mut found_type = self.type_lookup(place.into())?;
-    //     let target_ref = &mut found_type.parent_type;
-    //     while target_ref != found_type.found_type {
-    //         match target_ref.variant {
-    //             TypeVariant::Reference(reference_type) => todo!(),
-    //             TypeVariant::Tuple(items) => todo!(),
-    //             TypeVariant::Base(base_type) => panic!("Unexpected error"), // I don't think this should be possible
-    //         }
-    //     }
-
-    // }
-
     pub(crate) fn get_region(&self, name: String) -> Result<ConcreteRegion, OxidizedError> {
         if let Some(region) = self.regions.0.clone().into_iter().find(|r| r.name == name) {
             Ok(region)
@@ -274,7 +262,7 @@ impl ConcreteTyping {
                     (
                         Place {
                             variable: t.binding.clone().unwrap().variable,
-                            path: None,
+                            path: vec![],
                         },
                         t.clone(),
                     )
@@ -284,24 +272,14 @@ impl ConcreteTyping {
 
         let all_concrete_regions: Vec<ConcreteRegion> =
             self.regions.0.iter().map(|r| r.clone()).collect();
-        let all_place_expressions: Vec<PlaceExpression> = all_concrete_regions
+        let all_places: Vec<Place> = all_concrete_regions
             .iter()
             .map(|r| r.loans.clone())
             .reduce(|acc_loans, current_loans| acc_loans.union(current_loans))
             .unwrap()
             .0
             .iter()
-            .map(|l| l.place_expression.clone())
-            .collect();
-        let all_places: Vec<Place> = all_place_expressions
-            .iter()
-            .filter_map(|pe| {
-                if let Ok(place) = TryInto::<Place>::try_into((*pe).clone()) {
-                    Some(place)
-                } else {
-                    None
-                }
-            })
+            .map(|l| l.place.clone())
             .collect();
         let place_pairs = VecSet(
             all_places
@@ -337,13 +315,7 @@ impl ConcreteTyping {
                 for (i, type_info) in types.iter().enumerate() {
                     let new_place = Place {
                         variable: (&place).clone().variable,
-                        path: Some(
-                            [
-                                &(&place).clone().path.unwrap_or(Vec::new())[..],
-                                &vec![i as u32][..],
-                            ]
-                            .concat(),
-                        ),
+                        path: [&(&place).clone().path[..], &vec![i as u32][..]].concat(),
                     };
                     exploded = exploded.union(Self::explode_pair(new_place, (**type_info).clone()))
                 }
@@ -487,7 +459,9 @@ impl Type {
                     let target_type = *ref_type.target_type;
 
                     // In theory should be equivalent to the 𝜔 ≲ 𝜔′ restriction in TC-Deref
-                    if !target_type.copyable() && ref_type.ownership_qualifier == OwnershipQualifier::Shrd {
+                    if !target_type.copyable()
+                        && ref_type.ownership_qualifier == OwnershipQualifier::Shrd
+                    {
                         return Err(OxidizedError::CannotMove(target_type));
                     }
 
@@ -501,7 +475,7 @@ impl Type {
                 // let accessed_type = self.walk(*inner_pe)?;
                 // accessed_type.walk_tuple(&path[..])
             }
-            PlaceExpression::Variable(var) => Ok(self.clone()),
+            PlaceExpression::Place(_) => Ok(self.clone()),
         }
     }
 
@@ -530,11 +504,35 @@ impl Type {
     }
 }
 
+impl From<Loan> for PlaceExpression {
+    fn from(loan: Loan) -> Self {
+        if loan.is_reborrow {
+            PlaceExpression::Deref(Box::new(loan.place.into()))
+        } else {
+            loan.place.into()
+        }
+    }
+}
+
+impl From<Place> for PlaceExpression {
+    fn from(place: Place) -> Self {
+        PlaceExpression::Place(Place {
+            variable: place.variable,
+            path: place.path,
+        })
+    }
+}
+
 impl TryFrom<Expression> for Place {
     type Error = OxidizedError;
 
     fn try_from(value: Expression) -> Result<Self, Self::Error> {
-        TryInto::<Place>::try_into(TryInto::<PlaceExpression>::try_into(value)?)
+        let place_expression = value.clone().try_into()?;
+        if let PlaceExpression::Place(place) = place_expression {
+            Ok(place)
+        } else {
+            Err(OxidizedError::InvalidPlaceExpression(value))
+        }
     }
 }
 
@@ -548,45 +546,21 @@ impl TryFrom<Expression> for PlaceExpression {
                 Ok(Self::Deref(Box::new(place_expression)))
             }
             Expression::PathAccess(e, p) => {
-                let place_expression = (*e).try_into()?;
-                Ok(Self::PathAccess(Box::new(place_expression), p))
-            }
-            Expression::Variable(v) => Ok(Self::Variable(v)),
-            _ => Err(OxidizedError::InvalidPlaceExpression(value)),
-        }
-    }
-}
-
-impl TryFrom<PlaceExpression> for Place {
-    type Error = OxidizedError;
-
-    fn try_from(place_expression: PlaceExpression) -> Result<Self, Self::Error> {
-        match place_expression.clone() {
-            PlaceExpression::PathAccess(inner_pe, path) => {
-                if let PlaceExpression::Variable(variable) = *inner_pe {
-                    Ok(Place {
-                        variable,
-                        path: Some(path),
-                    })
+                if let Expression::Variable(var) = *e {
+                    Ok(Self::Place(Place {
+                        variable: var,
+                        path: p,
+                    }))
                 } else {
-                    Err(OxidizedError::InvalidPlace(place_expression))
+                    let place_expression = (*e).try_into()?;
+                    Ok(Self::PathAccess(Box::new(place_expression), p))
                 }
             }
-            PlaceExpression::Variable(variable) => Ok(Place {
-                variable,
-                path: None,
-            }),
-            _ => Err(OxidizedError::InvalidPlace(place_expression)),
-        }
-    }
-}
-
-impl From<Place> for PlaceExpression {
-    fn from(place: Place) -> Self {
-        if let Some(path) = place.path {
-            PlaceExpression::PathAccess(Box::new(PlaceExpression::Variable(place.variable)), path)
-        } else {
-            PlaceExpression::Variable(place.variable)
+            Expression::Variable(var) => Ok(Self::Place(Place {
+                variable: var,
+                path: vec![],
+            })),
+            _ => Err(OxidizedError::InvalidPlaceExpression(value)),
         }
     }
 }
@@ -598,7 +572,7 @@ impl PlaceExpression {
             PlaceExpression::PathAccess(place_expression, _) => {
                 place_expression.get_inner_variable()
             }
-            PlaceExpression::Variable(var) => var.to_string(),
+            PlaceExpression::Place(place) => place.variable.to_string(),
         }
     }
 }

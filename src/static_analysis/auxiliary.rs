@@ -1,3 +1,5 @@
+use std::println;
+
 use super::data_structures::*;
 
 impl ConcreteTyping {
@@ -10,8 +12,8 @@ impl ConcreteTyping {
                     !self.regions.0.iter().any(|r| {
                         if r.name != region.name {
                             r.loans.0.iter().any(|loan| {
-                                if let PlaceExpression::Deref(pe) = loan.place_expression.clone() {
-                                    *pe == pair.0.clone().into()
+                                if loan.is_reborrow {
+                                    loan.place == pair.0
                                 } else {
                                     false
                                 }
@@ -86,7 +88,7 @@ impl PlaceExpression {
                     depth += 1;
                     current_node = place_expression;
                 }
-                PlaceExpression::Variable(_) => {
+                PlaceExpression::Place(_) => {
                     depth += 1;
                     break;
                 }
@@ -104,7 +106,7 @@ impl PlaceExpression {
                     other_levels.push(current_node.clone());
                     current_node = *place_expression;
                 }
-                PlaceExpression::Variable(_) => {
+                PlaceExpression::Place(_) => {
                     other_levels.push(current_node.clone());
                     break;
                 }
@@ -122,8 +124,18 @@ impl PlaceExpression {
             if let PlaceExpression::PathAccess(place_expression2, path2) =
                 other_levels[depth - 1].clone()
             {
-                *place_expression1 == place_expression2
-                    && PlaceExpression::is_path_prefix(path1.clone(), path2.clone())
+                return *place_expression1 == place_expression2
+                    && PlaceExpression::is_path_prefix(path1.clone(), path2.clone());
+            } else {
+                return false;
+            }
+        }
+
+        // Kinda forgot how this works no i'm not sure if the previous if lets are necessary but adding this did fix the failing tests.
+        if let PlaceExpression::Place(place1) = self {
+            if let PlaceExpression::Place(place2) = other_levels[depth - 1].clone() {
+                place1.variable == place2.variable
+                    && PlaceExpression::is_path_prefix(place1.clone().path, place2.path)
             } else {
                 false
             }

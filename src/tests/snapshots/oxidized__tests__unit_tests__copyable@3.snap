@@ -1,0 +1,5 @@
+---
+source: src/tests/unit_tests.rs
+description: "&'a shared u32 is copyable"
+---
+true

@@ -1,5 +1,0 @@
----
-source: src/testing/display_impl_tests.rs
-expression: "format!(\"{}\", typ)"
----
- var2 := (u32, &'a unique (u32, u32))

@@ -3,6 +3,7 @@ use super::data_structures::*;
 use color_print::cprintln;
 use std::fmt::Display;
 use std::println;
+use std::vec;
 
 const DEBUG_TCSTATE: bool = true;
 const PRINT_STACK: bool = false;
@@ -606,10 +607,14 @@ impl TCState for TLetState {
                 );
             }
             // It is possible that the type originally bound was reassigned before the gc_fn was called.
-            let current_bound_type = result_val
-                .0
-                .clone()
-                .type_lookup(PlaceExpression::Variable(binding_result_val.1.binding.unwrap().variable))?;
+            let current_bound_type =
+                result_val
+                    .0
+                    .clone()
+                    .type_lookup(PlaceExpression::Place(Place {
+                        variable: binding_result_val.1.binding.unwrap().variable,
+                        path: vec![],
+                    }))?;
             let gc_return_val =
                 (self.gc_fn.take().unwrap())(result_val.0, result_val.1, current_bound_type)?;
             Ok(gc_return_val.1)

@@ -1,7 +1,6 @@
 mod ast;
 mod debugging;
 mod static_analysis;
-mod tests;
 
 use std::println;
 

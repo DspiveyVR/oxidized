@@ -1,19 +1,18 @@
-use crate::{
+use oxidized::{
     ast::OwnershipQualifier,
-    debugging::display_impls::{format_explode_pair, vec_display_elements},
-    oxidized,
+    parser::ExprParser,
+    set_snapshot_suffix,
     static_analysis::data_structures::*,
-    tests::set_snapshot_suffix,
 };
 use rstest::*;
 use similar_asserts::assert_eq;
 
 #[fixture]
-pub(crate) fn new_concrete() -> ConcreteTyping {
+pub fn new_concrete() -> ConcreteTyping {
     ConcreteTyping::new_with_regions(&vec!["a".to_string()], 0)
 }
 
-pub(crate) fn get_u32() -> Box<Type> {
+pub fn get_u32() -> Box<Type> {
     Box::new(Type {
         binding: None,
         variant: TypeVariant::Base(BaseType::U32),
@@ -22,7 +21,7 @@ pub(crate) fn get_u32() -> Box<Type> {
     })
 }
 
-pub(crate) fn get_ref_to(
+pub fn get_ref_to(
     typ: Box<Type>,
     ownership_qualifier: OwnershipQualifier,
     region: String,
@@ -40,7 +39,7 @@ pub(crate) fn get_ref_to(
 }
 
 #[fixture]
-pub(crate) fn tup1() -> Type {
+pub fn tup1() -> Type {
     Type {
         binding: Some(Binding {
             variable: "var".to_string(),
@@ -61,7 +60,7 @@ pub(crate) fn tup1() -> Type {
 }
 
 #[fixture]
-pub(crate) fn tup2() -> Type {
+pub fn tup2() -> Type {
     Type {
         binding: Some(Binding {
             variable: "var2".to_string(),
@@ -86,7 +85,7 @@ pub(crate) fn tup2() -> Type {
 }
 
 #[fixture]
-pub(crate) fn tup3() -> Type {
+pub fn tup3() -> Type {
     Type {
         binding: Some(Binding {
             variable: "var2".to_string(),
@@ -111,7 +110,7 @@ pub(crate) fn tup3() -> Type {
 }
 
 #[fixture]
-pub(crate) fn tup2_inner_binding() -> Type {
+pub fn tup2_inner_binding() -> Type {
     Type {
         binding: Some(Binding {
             variable: "var2".to_string(),
@@ -140,14 +139,14 @@ pub(crate) fn tup2_inner_binding() -> Type {
 
 #[fixture]
 fn var_pe() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("var").unwrap())
+    (*ExprParser::new().parse("var").unwrap())
         .try_into()
         .unwrap()
 }
 
 #[fixture]
 fn var2_pe() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("var2").unwrap())
+    (*ExprParser::new().parse("var2").unwrap())
         .try_into()
         .unwrap()
 }
@@ -207,63 +206,63 @@ fn self_lookup(#[case] typ: Type, #[case] var: PlaceExpression, new_concrete: Co
 
 #[fixture]
 fn test_pe1() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("var.1.0").unwrap())
+    (*ExprParser::new().parse("var.1.0").unwrap())
         .try_into()
         .unwrap()
 }
 
 #[fixture]
 fn test_pe2() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("var.0.1").unwrap())
+    (*ExprParser::new().parse("var.0.1").unwrap())
         .try_into()
         .unwrap()
 }
 
 #[fixture]
 fn test_pe3() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("var.0.0").unwrap())
+    (*ExprParser::new().parse("var.0.0").unwrap())
         .try_into()
         .unwrap()
 }
 
 #[fixture]
 fn test_pe4() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("var.1").unwrap())
+    (*ExprParser::new().parse("var.1").unwrap())
         .try_into()
         .unwrap()
 }
 
 #[fixture]
 fn test_pe5() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("var.1.0.1").unwrap())
+    (*ExprParser::new().parse("var.1.0.1").unwrap())
         .try_into()
         .unwrap()
 }
 
 #[fixture]
 fn test_pe6() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("(*var.1).0.1").unwrap())
+    (*ExprParser::new().parse("(*var.1).0.1").unwrap())
         .try_into()
         .unwrap()
 }
 
 #[fixture]
 fn test_pe7() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("*var.0.0").unwrap())
+    (*ExprParser::new().parse("*var.0.0").unwrap())
         .try_into()
         .unwrap()
 }
 
 #[fixture]
 fn test_pe8() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("*(*var.1).0.1").unwrap())
+    (*ExprParser::new().parse("*(*var.1).0.1").unwrap())
         .try_into()
         .unwrap()
 }
 
 #[fixture]
 fn test_pe9() -> PlaceExpression {
-    (*oxidized::ExprParser::new().parse("*var.1.0").unwrap())
+    (*ExprParser::new().parse("*var.1.0").unwrap())
         .try_into()
         .unwrap()
 }

@@ -1,0 +1,190 @@
+---
+source: tests/typecheck_tests.rs
+description: "\n    letrgn<'x,  'y> {\n        let x: u32 = 5;\n        let y: &'x shrd u32 = &'x shrd x;\n        y; y; ()\n    }; ()\n    "
+---
+Step 1: Letrgn
+ConcreteTyping { 
+	r: [
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 2: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 3: Expr
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 4: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 5: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 6: Expr
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 7: Let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 8: Seq
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 9: Expr
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 10: Seq
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 11: Seq
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 12: Expr
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 13: Seq
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 14: Expr
+ConcreteTyping { 
+	r: [
+		'x -> { shared x },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 y := &'x shared u32
+	]
+ }
+
+Step 15: Seq
+ConcreteTyping { 
+	r: [
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 16: Expr
+ConcreteTyping { 
+	r: [
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 17: PREV
+ConcreteTyping { 
+	r: [
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 18: END
+ConcreteTyping { 
+	r: [
+	]
+ 	𝜏: [
+	]
+ }

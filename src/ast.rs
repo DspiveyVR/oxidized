@@ -1,8 +1,6 @@
 use std::fmt::Display;
 
 use serde::Serialize;
-
-use crate::static_analysis::data_structures::PlaceExpression;
 // use color_print;
 
 //TODO: convert these tuple structs into named structs you idiot

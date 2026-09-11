@@ -136,7 +136,7 @@ impl Display for Place {
     }
 }
 
-pub(crate) fn vec_display_elements<T>(vec: &Vec<T>) -> String
+pub fn _vec_display_elements<T>(vec: &Vec<T>) -> String
 where
     T: Display,
 {
@@ -158,6 +158,6 @@ fn path_to_string(path: &Vec<u32>) -> String {
     )
 }
 
-pub(crate) fn format_explode_pair(pair: (Place, Type)) -> String {
+pub fn _format_explode_pair(pair: (Place, Type)) -> String {
     format!("{{{}, {}}}", pair.0, pair.1)
 }

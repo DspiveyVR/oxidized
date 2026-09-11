@@ -1,11 +1,11 @@
+use oxidized::parser::ExprParser;
+use oxidized::set_snapshot_suffix;
 use rstest::*;
 
-use crate::oxidized;
-use crate::static_analysis::data_structures::ConcreteTyping;
-use crate::static_analysis::data_structures::OxidizedError;
-use crate::static_analysis::tc_state_machine::*;
-use crate::tests::oxide_programs;
-use crate::tests::set_snapshot_suffix;
+use oxidized::static_analysis::data_structures::ConcreteTyping;
+use oxidized::static_analysis::data_structures::OxidizedError;
+use oxidized::static_analysis::tc_state_machine::*;
+use oxidized::testlib::oxide_programs;
 
 fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
     match result {
@@ -58,7 +58,7 @@ fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
 fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
-    let ast = oxidized::ExprParser::new().parse(program).unwrap();
+    let ast = ExprParser::new().parse(program).unwrap();
     dbg!(&ast);
 
     insta::with_settings!({
@@ -94,7 +94,7 @@ fn full_program(#[case] program: &'static str, #[case] n: u32) {
 fn into_over_x2(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
-    let ast = oxidized::ExprParser::new().parse(program).unwrap();
+    let ast = ExprParser::new().parse(program).unwrap();
     dbg!(&ast);
 
     insta::with_settings!({
@@ -160,7 +160,7 @@ fn into_over_x2(#[case] program: &'static str, #[case] n: u32) {
 fn three_line_move_or_copy(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
-    let ast = oxidized::ExprParser::new().parse(program).unwrap();
+    let ast = ExprParser::new().parse(program).unwrap();
     dbg!(&ast);
 
     insta::with_settings!({
@@ -194,7 +194,7 @@ fn three_line_move_or_copy(#[case] program: &'static str, #[case] n: u32) {
 fn four_line_move_or_copy(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
-    let ast = oxidized::ExprParser::new().parse(program).unwrap();
+    let ast = ExprParser::new().parse(program).unwrap();
     dbg!(&ast);
 
     insta::with_settings!({

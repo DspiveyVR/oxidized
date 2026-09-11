@@ -4,7 +4,7 @@ use super::data_structures::*;
 
 impl ConcreteTyping {
     // FIXME: make this look less stupid
-    pub(crate) fn rnrb(&self, region: ConcreteRegion) -> bool {
+    pub fn rnrb(&self, region: ConcreteRegion) -> bool {
         let exploded = self.explode();
         exploded.0.iter().all(|pair| {
             if let TypeVariant::Reference(reference) = pair.1.variant.clone() {
@@ -32,7 +32,7 @@ impl ConcreteTyping {
     }
 
     // TODO: Actually implement NLL
-    pub(crate) fn gc_loans(&self, continuation_typing: Self) -> Self {
+    pub fn gc_loans(&self, continuation_typing: Self) -> Self {
         let mut stack_clone = self.clone();
         let env_union = stack_clone.types.union(continuation_typing.types).0;
         for r in stack_clone.regions.0.iter_mut() {
@@ -51,7 +51,7 @@ impl ConcreteTyping {
         stack_clone
     }
 
-    pub(crate) fn check_conflicting_region_names(
+    pub fn check_conflicting_region_names(
         &self,
         region_names: &Vec<String>,
     ) -> Result<(), OxidizedError> {
@@ -71,7 +71,7 @@ impl ConcreteTyping {
 }
 
 impl PlaceExpression {
-    pub(crate) fn overlaps(&self, other: &PlaceExpression) -> bool {
+    pub fn overlaps(&self, other: &PlaceExpression) -> bool {
         self.is_prefix_of(other.clone()) || other.is_prefix_of(self.clone()) || self == other
     }
 
@@ -158,7 +158,7 @@ impl PlaceExpression {
     }
 }
 
-pub(crate) fn err_if_dead(
+pub fn err_if_dead(
     res: Result<(ConcreteTyping, Type), OxidizedError>,
 ) -> Result<(ConcreteTyping, Type), OxidizedError> {
     let ret_type = res.clone()?.1;
@@ -169,7 +169,7 @@ pub(crate) fn err_if_dead(
     }
 }
 
-pub(crate) fn get_unit() -> Type {
+pub fn get_unit() -> Type {
     Type {
         binding: None,
         variant: TypeVariant::Base(BaseType::Unit),

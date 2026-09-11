@@ -6,100 +6,100 @@ use thiserror::Error;
 
 // Types
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct ConcreteTyping {
-    pub(crate) regions: VecSet<ConcreteRegion>,
-    pub(crate) types: VecSet<Type>,
+pub struct ConcreteTyping {
+    pub regions: VecSet<ConcreteRegion>,
+    pub types: VecSet<Type>,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct Type {
-    pub(crate) binding: Option<Binding>,
-    pub(crate) variant: TypeVariant,
-    pub(crate) is_sized: Ternary,
-    pub(crate) is_dead: Ternary,
+pub struct Type {
+    pub binding: Option<Binding>,
+    pub variant: TypeVariant,
+    pub is_sized: Ternary,
+    pub is_dead: Ternary,
 }
 
 #[derive(Serialize, Debug, Clone, Eq, PartialEq)]
-pub(crate) enum PlaceExpression {
+pub enum PlaceExpression {
     Deref(Box<PlaceExpression>),
     PathAccess(Box<PlaceExpression>, Vec<u32>),
     Place(Place),
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct Binding {
-    pub(crate) variable: String,
-    pub(crate) is_mut: bool,
+pub struct Binding {
+    pub variable: String,
+    pub is_mut: bool,
 }
 
 #[derive(Serialize, Debug, Clone, Eq, PartialEq)]
-pub(crate) struct Place {
-    pub(crate) variable: String,
-    pub(crate) path: Vec<u32>,
+pub struct Place {
+    pub variable: String,
+    pub path: Vec<u32>,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) enum TypeVariant {
+pub enum TypeVariant {
     Base(BaseType),
     Reference(ReferenceType),
     Tuple(Vec<Box<Type>>),
 }
 
 #[derive(Serialize, Debug, Clone, Eq, PartialEq)]
-pub(crate) enum BaseType {
+pub enum BaseType {
     Bool,
     U32,
     Unit,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct ReferenceType {
-    pub(crate) region_name: String,
-    pub(crate) ownership_qualifier: OwnershipQualifier,
-    pub(crate) target_type: Box<Type>,
+pub struct ReferenceType {
+    pub region_name: String,
+    pub ownership_qualifier: OwnershipQualifier,
+    pub target_type: Box<Type>,
 }
 
 #[derive(Serialize, Debug, Clone, Eq, PartialEq)]
-pub(crate) enum Ternary {
+pub enum Ternary {
     Yes,
     No,
     // Maybe,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct Region(pub(crate) RegionLevel);
+pub struct Region(pub RegionLevel);
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) enum RegionLevel {
+pub enum RegionLevel {
     ConcreteRegion(ConcreteRegion),
     // AbstractRegion
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct ConcreteRegion {
-    pub(crate) name: String,
-    pub(crate) loans: VecSet<Loan>,
-    pub(crate) scope: u32,
+pub struct ConcreteRegion {
+    pub name: String,
+    pub loans: VecSet<Loan>,
+    pub scope: u32,
 }
 
 #[derive(Serialize, Debug, Clone, Eq, PartialEq)]
-pub(crate) struct Loan {
-    pub(crate) ownership_qualifier: OwnershipQualifier,
-    pub(crate) place: Place,
-    pub(crate) is_reborrow: bool,
+pub struct Loan {
+    pub ownership_qualifier: OwnershipQualifier,
+    pub place: Place,
+    pub is_reborrow: bool,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) enum RegionRewriteMode {
+pub enum RegionRewriteMode {
     Plus,
     Equals,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub(crate) struct VecSet<T>(pub(crate) Vec<T>);
+pub struct VecSet<T>(pub Vec<T>);
 
 #[derive(Debug, Clone, Error)]
-pub(crate) enum OxidizedError {
+pub enum OxidizedError {
     #[error("A region with name {0} already exists")]
     RegionNameConflict(String),
     #[error("Type {0} is dead")]
@@ -142,7 +142,7 @@ pub(crate) enum OxidizedError {
 }
 
 // Traits
-pub(crate) trait Set<T>
+pub trait Set<T>
 where
     T: Eq + Clone,
 {
@@ -150,7 +150,7 @@ where
     fn union(&self, other: Self) -> Self;
 }
 
-pub(crate) trait TypeEnv {
+pub trait TypeEnv {
     fn union(&self, other: Self) -> Self;
 }
 
@@ -164,12 +164,12 @@ impl TypeEnv for ConcreteTyping {
     }
 }
 
-pub(crate) struct TypeLookup {
-    pub(crate) found_type: Type,
-    pub(crate) parent_type: Type,
+pub struct TypeLookup {
+    pub found_type: Type,
+    pub parent_type: Type,
 }
 impl ConcreteTyping {
-    pub(crate) fn type_lookup(
+    pub fn type_lookup(
         &self,
         place_expression: PlaceExpression,
     ) -> Result<Type, OxidizedError> {
@@ -186,21 +186,21 @@ impl ConcreteTyping {
         }
     }
 
-    pub(crate) fn add_region(&self, new_region: ConcreteRegion) -> Self {
+    pub fn add_region(&self, new_region: ConcreteRegion) -> Self {
         ConcreteTyping {
             regions: VecSet([&self.regions.0[..], &vec![new_region][..]].concat()),
             types: self.types.clone(),
         }
     }
 
-    pub(crate) fn add_type(&self, new_type: Type) -> Self {
+    pub fn add_type(&self, new_type: Type) -> Self {
         ConcreteTyping {
             regions: self.regions.clone(),
             types: VecSet([&self.types.0[..], &vec![new_type][..]].concat()),
         }
     }
 
-    pub(crate) fn set_type(&self, t1: Type, t2: Type) -> Self {
+    pub fn set_type(&self, t1: Type, t2: Type) -> Self {
         let mut new_env = self.clone();
         if let Some(t) = new_env
             .types
@@ -215,7 +215,7 @@ impl ConcreteTyping {
         }
     }
 
-    pub(crate) fn get_region(&self, name: String) -> Result<ConcreteRegion, OxidizedError> {
+    pub fn get_region(&self, name: String) -> Result<ConcreteRegion, OxidizedError> {
         if let Some(region) = self.regions.0.clone().into_iter().find(|r| r.name == name) {
             Ok(region)
         } else {
@@ -223,7 +223,7 @@ impl ConcreteTyping {
         }
     }
 
-    pub(crate) fn set_region(&self, name: String, new_region: ConcreteRegion) -> Self {
+    pub fn set_region(&self, name: String, new_region: ConcreteRegion) -> Self {
         let mut new_env = self.clone();
         if let Some(r) = new_env.regions.0.iter_mut().find(|r| r.name == name) {
             *r = new_region;
@@ -233,7 +233,7 @@ impl ConcreteTyping {
         }
     }
 
-    pub(crate) fn new_with_regions(region_names: &Vec<String>, scope: u32) -> Self {
+    pub fn new_with_regions(region_names: &Vec<String>, scope: u32) -> Self {
         ConcreteTyping {
             types: VecSet::new(),
             regions: VecSet(
@@ -245,7 +245,7 @@ impl ConcreteTyping {
         }
     }
 
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         ConcreteTyping {
             types: VecSet::new(),
             regions: VecSet::new(),
@@ -253,7 +253,7 @@ impl ConcreteTyping {
     }
 
     // these two funcitons are highly questionable .  so is the fact that i consistently misspell the word function
-    pub(crate) fn explode(&self) -> VecSet<(Place, Type)> {
+    pub fn explode(&self) -> VecSet<(Place, Type)> {
         let binding_pairs = VecSet(
             self.types
                 .0
@@ -398,7 +398,7 @@ impl From<TypeAnnotation> for Type {
 }
 
 impl Type {
-    pub(crate) fn copyable(&self) -> bool {
+    pub fn copyable(&self) -> bool {
         match &self.variant {
             TypeVariant::Base(_) => true,
             TypeVariant::Reference(reference_type) => {
@@ -413,7 +413,7 @@ impl Type {
     }
 
     // Same as partial eq impl but doesn't check region names.  This is useful when I need to check type equality before region rewriting.
-    pub(crate) fn eq_unchecked_regions(&self, other: &Self) -> bool {
+    pub fn eq_unchecked_regions(&self, other: &Self) -> bool {
         let variant_equal = match &self.variant {
             TypeVariant::Base(base_type) => {
                 if let TypeVariant::Base(other_type) = &other.variant {
@@ -598,12 +598,12 @@ impl PartialEq for ConcreteRegion {
 impl Eq for ConcreteRegion {}
 
 impl Region {
-    pub(crate) fn get_concrete(&self) -> &ConcreteRegion {
+    pub fn get_concrete(&self) -> &ConcreteRegion {
         let RegionLevel::ConcreteRegion(cr) = &self.0;
         cr
     }
 
-    pub(crate) fn new_concrete(name: String, scope: u32) -> Self {
+    pub fn new_concrete(name: String, scope: u32) -> Self {
         Region(RegionLevel::ConcreteRegion(ConcreteRegion::new(
             name, scope,
         )))
@@ -611,7 +611,7 @@ impl Region {
 }
 
 impl ConcreteRegion {
-    pub(crate) fn new(name: String, scope: u32) -> Self {
+    pub fn new(name: String, scope: u32) -> Self {
         ConcreteRegion {
             name: name,
             loans: VecSet::new(),
@@ -619,7 +619,7 @@ impl ConcreteRegion {
         }
     }
 
-    pub(crate) fn set_loans(&self, loans: VecSet<Loan>) -> ConcreteRegion {
+    pub fn set_loans(&self, loans: VecSet<Loan>) -> ConcreteRegion {
         let mut new_region = self.clone();
         new_region.loans = loans;
         new_region

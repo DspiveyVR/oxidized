@@ -1,5 +1,4 @@
 use core::panic;
-use std::io::ErrorKind::NetworkDown;
 use std::todo;
 use std::vec;
 
@@ -31,7 +30,7 @@ use crate::static_analysis::auxiliary::get_unit;
 use crate::static_analysis::data_structures::PlaceExpression::Deref;
 
 impl Expression {
-    pub(crate) fn typecheck(
+    pub fn typecheck(
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
@@ -242,7 +241,7 @@ impl Expression {
         )
     }
 
-    pub(crate) fn t_letrgn(
+    pub fn t_letrgn(
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
@@ -487,7 +486,7 @@ impl ConcreteTyping {
         reborrow_exclusion_list: VecSet<Place>,
     ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
         match place_expression {
-            Deref(place_expression) => todo!(),
+            Deref(_) => todo!(),
             // self.o_deref(
             //     continuation_typing,
             //     place_expression,
@@ -503,7 +502,7 @@ impl ConcreteTyping {
                 )?,
                 reborrow_exclusion_list,
             )),
-            PlaceExpression::PathAccess(place_expression, items) => todo!(),
+            PlaceExpression::PathAccess(..) => todo!(),
         }
     }
 

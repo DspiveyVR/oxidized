@@ -8,12 +8,12 @@ use std::vec;
 const DEBUG_TCSTATE: bool = true;
 const PRINT_STACK: bool = false;
 
-pub(crate) enum TCReturn {
+pub enum TCReturn {
     TCResult(TCResult),
     TCState(Box<dyn TCState>),
 }
-pub(crate) type TCReturnResult = Result<(Option<Box<dyn TCState>>, TCReturn), OxidizedError>;
-pub(crate) type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
+pub type TCReturnResult = Result<(Option<Box<dyn TCState>>, TCReturn), OxidizedError>;
+pub type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
 // FIXME: For now i'll ignore the continuation typing
 type TCFn = dyn FnOnce() -> TCReturnResult;
 type TCConsumerFn = dyn FnOnce(ConcreteTyping) -> TCReturnResult;
@@ -21,13 +21,13 @@ type TCPopVarsFn = dyn FnOnce(TCResult) -> TCReturnResult;
 type TC2ConsumerFn = dyn FnOnce(ConcreteTyping, Type) -> TCReturnResult;
 type TC3ConsumerFn = dyn FnOnce(ConcreteTyping, Type, Type) -> TCReturnResult;
 
-pub(crate) struct TCStateMachine {
+pub struct TCStateMachine {
     states: Vec<Box<dyn TCState>>,
     si_count: u32,
     so_count: u32,
 }
 
-pub(crate) trait TCState: Display {
+pub trait TCState: Display {
     fn step_into(self: Box<Self>) -> TCReturnResult;
 
     fn step_over(self: Box<Self>) -> TCReturnResult;
@@ -45,7 +45,7 @@ pub(crate) trait TCState: Display {
     fn get_state_name(&self) -> String;
 }
 
-pub(crate) struct TExprState {
+pub struct TExprState {
     e_fn: Option<Box<TCFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
 }
@@ -61,7 +61,7 @@ impl Display for TExprState {
     }
 }
 
-pub(crate) struct TLetrgnState {
+pub struct TLetrgnState {
     e_fn: Option<Box<TCFn>>,
     pop_vars_fn: Option<Box<TCPopVarsFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
@@ -84,7 +84,7 @@ impl Display for TLetrgnState {
     }
 }
 
-pub(crate) struct TSeqState {
+pub struct TSeqState {
     e1_fn: Option<Box<TCFn>>,
     e2_fn: Option<Box<TCConsumerFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
@@ -107,7 +107,7 @@ impl Display for TSeqState {
     }
 }
 
-pub(crate) struct TLetState {
+pub struct TLetState {
     e1_fn: Option<Box<TCFn>>,
     binding_fn: Option<Box<TC2ConsumerFn>>,
     e2_fn: Option<Box<TCConsumerFn>>,
@@ -117,7 +117,7 @@ pub(crate) struct TLetState {
     binding_result: Option<TCResult>,
 }
 
-pub(crate) struct TAssignState {
+pub struct TAssignState {
     e_fn: Option<Box<TCFn>>,
     binding_fn: Option<Box<TC2ConsumerFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
@@ -200,7 +200,7 @@ impl TCState for TExprState {
 }
 
 impl TExprState {
-    pub(crate) fn new_obj<TCFn: FnOnce() -> TCReturnResult + 'static>(
+    pub fn new_obj<TCFn: FnOnce() -> TCReturnResult + 'static>(
         e_fn: TCFn,
         env_state: (ConcreteTyping, ConcreteTyping),
     ) -> TCReturnResult {
@@ -265,7 +265,7 @@ impl TCState for TLetrgnState {
 }
 
 impl TLetrgnState {
-    pub(crate) fn new_obj<
+    pub fn new_obj<
         TCFn: FnOnce() -> TCReturnResult + 'static,
         TCPopVarsFn: FnOnce(TCResult) -> TCReturnResult + 'static,
     >(
@@ -379,7 +379,7 @@ impl TCState for TSeqState {
 }
 
 impl TSeqState {
-    pub(crate) fn new_obj<
+    pub fn new_obj<
         TCFn: FnOnce() -> TCReturnResult + 'static,
         TCConsumerFn: FnOnce(ConcreteTyping) -> TCReturnResult + 'static,
     >(
@@ -459,7 +459,7 @@ impl TCState for TAssignState {
 }
 
 impl TAssignState {
-    pub(crate) fn new_obj<
+    pub fn new_obj<
         TCFn: FnOnce() -> TCReturnResult + 'static,
         TC2ConsumerFn: FnOnce(ConcreteTyping, Type) -> TCReturnResult + 'static,
     >(
@@ -645,7 +645,7 @@ impl TCState for TLetState {
 }
 
 impl TLetState {
-    pub(crate) fn new_obj<
+    pub fn new_obj<
         TCFn: FnOnce() -> TCReturnResult + 'static,
         TCConsumerFn: FnOnce(ConcreteTyping) -> TCReturnResult + 'static,
         TC2ConsumerFn: FnOnce(ConcreteTyping, Type) -> TCReturnResult + 'static,
@@ -720,7 +720,7 @@ impl TCStateMachine {
         state
     }
 
-    pub(crate) fn new(state: Box<dyn TCState>) -> Self {
+    pub fn new(state: Box<dyn TCState>) -> Self {
         Self {
             states: vec![state],
             si_count: 0,
@@ -728,7 +728,7 @@ impl TCStateMachine {
         }
     }
 
-    pub(crate) fn evaluate(&mut self) -> TCResult {
+    pub fn evaluate(&mut self) -> TCResult {
         if DEBUG_TCSTATE {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
@@ -759,7 +759,7 @@ impl TCStateMachine {
         panic!("failed to evaluate");
     }
 
-    pub(crate) fn deep_evaluate(&mut self) -> Vec<(TCResult, String)> {
+    pub fn deep_evaluate(&mut self) -> Vec<(TCResult, String)> {
         if DEBUG_TCSTATE {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
@@ -822,7 +822,7 @@ impl TCStateMachine {
         panic!("failed to evaluate");
     }
 
-    pub(crate) fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
+    pub fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         if let Some(state) = self.states.last() {
             state.get_env_state()
         } else {
@@ -830,7 +830,7 @@ impl TCStateMachine {
         }
     }
 
-    pub(crate) fn step_into(
+    pub fn step_into(
         &mut self,
     ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
         self.si_count += 1;
@@ -844,7 +844,7 @@ impl TCStateMachine {
         self.step(return_result)
     }
 
-    pub(crate) fn step_over(
+    pub fn step_over(
         &mut self,
     ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
         self.so_count += 1;

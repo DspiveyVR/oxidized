@@ -1,5 +1,0 @@
----
-source: src/tests/display_impl_tests.rs
-expression: "format!(\"{}\", pe)"
----
-*(var.1.0)

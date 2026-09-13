@@ -1,6 +1,6 @@
 use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
 use serde::Serialize;
-use std::{fmt::Debug, todo, vec};
+use std::{fmt::Debug, panic, todo, vec};
 // use color_print;
 use thiserror::Error;
 
@@ -164,25 +164,143 @@ impl TypeEnv for ConcreteTyping {
     }
 }
 
-pub struct TypeLookup {
-    pub found_type: Type,
-    pub parent_type: Type,
+#[derive(Clone)]
+pub struct TypeComputation {
+    types: Vec<Type>,
+    places: Vec<Place>,
+    iter_index: usize,
 }
+
+impl Iterator for TypeComputation {
+    type Item = (Type, Place);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match (
+            self.types.get(self.iter_index),
+            self.places.get(self.iter_index),
+        ) {
+            (Some(typ), Some(place)) => {
+                self.iter_index += 1;
+                Some((typ.clone(), place.clone()))
+            }
+            _ => None,
+        }
+    }
+}
+
+impl TypeComputation {
+    pub fn new(typ: Type, place: Place) -> Self {
+        TypeComputation {
+            types: vec![typ],
+            places: vec![place],
+            iter_index: 0,
+        }
+    }
+
+    pub fn get_types(&self) -> &Vec<Type> {
+        &self.types
+    }
+
+    pub fn get_type(&self, i: usize) -> Option<&Type> {
+        self.types.get(i)
+    }
+
+    pub fn get_place(&self, i: usize) -> Option<&Place> {
+        self.places.get(i)
+    }
+
+    pub fn get_type_value(&self) -> &Type {
+        self.types.last().unwrap()
+    }
+
+    pub fn get_place_value(&self) -> &Place {
+        self.places.last().unwrap()
+    }
+
+    pub fn append(&self, place: Place, typ: Type) -> Self {
+        let mut new_tc = self.clone();
+        new_tc.places.push(place);
+        new_tc.types.push(typ);
+
+        new_tc
+    }
+
+    pub fn get_depth(&self) -> usize {
+        self.places.len()
+    }
+}
+
 impl ConcreteTyping {
-    pub fn type_lookup(
-        &self,
-        place_expression: PlaceExpression,
-    ) -> Result<Type, OxidizedError> {
-        let var = place_expression.get_inner_variable();
-        let parent_type = self
+    pub fn lookup_type(&self, place: Place) -> Result<&Type, OxidizedError> {
+        if let Some(typ) = self
             .types
             .0
             .iter()
-            .find(|t| t.binding.clone().unwrap().variable == var);
-        if let Some(parent_type) = parent_type {
-            Ok(parent_type.walk(place_expression)?)
+            .find(|t| t.binding.clone().unwrap().variable == place.variable)
+        {
+            if typ.is_dead == Ternary::Yes {
+                return Err(OxidizedError::UseOfMovedValue(typ.clone()));
+            }
+            Ok(typ)
         } else {
-            return Err(OxidizedError::UseOfUndeclared(var));
+            Err(OxidizedError::UseOfUndeclared(place.variable))
+        }
+    }
+
+    /*
+
+    let a = 5;
+    let b = &a;
+    let c = &b;
+
+    comp(**c) {
+        comp(*c) {
+            comp(c) {
+                TC { [c], [&&int] }
+            }
+
+            target == (b, &int)
+
+
+            TC { [c, b], [&&int, &int]}
+        }
+
+        target == (a, int)
+
+        TC { [c, b, a], [&&int, &int, int]}
+    }
+
+
+
+    *b;
+    a;
+
+     */
+
+    pub fn compute_type(
+        &self,
+        place_expression: PlaceExpression,
+    ) -> Result<TypeComputation, OxidizedError> {
+        match place_expression {
+            PlaceExpression::Deref(place_expression) => {
+                let tc = self.compute_type(*place_expression)?;
+                if let TypeVariant::Reference(ref_type) = tc.get_type_value().clone().variant {
+                    let target = ref_type.target_type;
+
+                    if target.is_dead == Ternary::Yes {
+                        return Err(OxidizedError::UseOfMovedValue(*target));
+                    }
+
+                    Ok(tc.append(target.binding.clone().unwrap().into(), *target))
+                } else {
+                    panic!("Unexpected match")
+                }
+            }
+            PlaceExpression::Place(place) => Ok(TypeComputation::new(
+                self.lookup_type(place.clone())?.clone(),
+                place,
+            )),
+            PlaceExpression::PathAccess(..) => todo!(),
         }
     }
 
@@ -252,7 +370,6 @@ impl ConcreteTyping {
         }
     }
 
-    // these two funcitons are highly questionable .  so is the fact that i consistently misspell the word function
     pub fn explode(&self) -> VecSet<(Place, Type)> {
         let binding_pairs = VecSet(
             self.types
@@ -287,8 +404,9 @@ impl ConcreteTyping {
                 .map(|p| {
                     (
                         p.clone(),
-                        self.type_lookup((*p).clone().into())
-                            .expect("Unexpected error"),
+                        self.lookup_type(p.clone())
+                            .expect("Unexpected error")
+                            .clone(),
                     )
                 })
                 .collect(),
@@ -449,57 +567,13 @@ impl Type {
             && (self.is_dead == other.is_dead)
             && (self.copyable() == other.copyable())
     }
+}
 
-    // dun dunununun RE! dun dunununun SPECT! dun dunununun WALK! dun dun dun dununununununununun
-    fn walk(&self, place_expression: PlaceExpression) -> Result<Self, OxidizedError> {
-        match place_expression {
-            PlaceExpression::Deref(inner_pe) => {
-                let inner_type = self.walk((*inner_pe).clone())?;
-                if let TypeVariant::Reference(ref_type) = inner_type.variant.clone() {
-                    let target_type = *ref_type.target_type;
-
-                    // In theory should be equivalent to the 𝜔 ≲ 𝜔′ restriction in TC-Deref
-                    if !target_type.copyable()
-                        && ref_type.ownership_qualifier == OwnershipQualifier::Shrd
-                    {
-                        return Err(OxidizedError::CannotMove(target_type));
-                    }
-
-                    Ok(target_type)
-                } else {
-                    Err(OxidizedError::CannotDereference(inner_type.clone()))
-                }
-            }
-            PlaceExpression::PathAccess(inner_pe, path) => {
-                todo!()
-                // let accessed_type = self.walk(*inner_pe)?;
-                // accessed_type.walk_tuple(&path[..])
-            }
-            PlaceExpression::Place(_) => Ok(self.clone()),
-        }
-    }
-
-    fn walk_tuple(&self, path: &[u32]) -> Result<Self, OxidizedError> {
-        if let TypeVariant::Tuple(types) = self.variant.clone() {
-            let accessed_type = types.get(path[0] as usize);
-            if let Some(accessed_type) = accessed_type {
-                let new_path = &path[1..];
-                if new_path.len() > 0 {
-                    accessed_type.walk_tuple(new_path)
-                } else {
-                    Ok((**accessed_type).clone())
-                }
-            } else {
-                Err(OxidizedError::InvalidPathAccess(
-                    path.to_vec(),
-                    self.clone(),
-                ))
-            }
-        } else {
-            Err(OxidizedError::InvalidPathAccess(
-                path.to_vec(),
-                self.clone(),
-            ))
+impl From<Binding> for Place {
+    fn from(value: Binding) -> Self {
+        Place {
+            variable: value.variable,
+            path: vec![],
         }
     }
 }

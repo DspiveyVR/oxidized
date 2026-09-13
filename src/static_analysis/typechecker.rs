@@ -17,7 +17,6 @@ there's a little more to the regions() metafunction than just accessing the regi
 in the cont typing.  probably can forget about it for now.
 
 TODO: see if theres a way to get rid of the unexpected match conditions so that it is logically impossible according to the type system.
-TODO: probably need some better ways to pattern match places/place expressions
 TODO: better new, get, and set methods for various types. prob could use some helper methods in general
 
 */
@@ -45,7 +44,7 @@ impl Expression {
             ), // If a let is by itself not sequenced then its basically just dead.
             Expression::Ref(..) => self.t_borrow(stack_typing, continuation_typing),
             Expression::Variable(_) | Expression::PathAccess(..) | Expression::Deref(_) => {
-                Self::t_place_expression(
+                Self::place_expression_usage(
                     TryInto::<PlaceExpression>::try_into(self.clone()).expect("Unexpected error"),
                     stack_typing,
                     continuation_typing,
@@ -96,15 +95,22 @@ impl Expression {
         }
     }
 
-    fn t_place_expression(
+    /*
+       Somehow need to integrate type computation, copy/move, and ownership check all together.
+       Might make more sense for this logic to be iterative so that these three things can be interleaved.
+       Likely need to read over some of the rules in the paper to make a more informed decision about how to apply
+       them here and in what order.
+    */
+
+    fn place_expression_usage(
         place_expression: PlaceExpression,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
     ) -> TCReturnResult {
+        let type_computation = stack_typing.compute_type(place_expression)?;
+
         let found_type = stack_typing.type_lookup(place_expression.clone())?;
-        if found_type.is_dead == Ternary::Yes {
-            return Err(OxidizedError::UseOfMovedValue(found_type));
-        }
+        if found_type.is_dead == Ternary::Yes {}
         if found_type.copyable() {
             Self::t_copy(
                 place_expression.try_into().unwrap(),
@@ -486,19 +492,18 @@ impl ConcreteTyping {
         reborrow_exclusion_list: VecSet<Place>,
     ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
         match place_expression {
-            Deref(_) => todo!(),
-            // self.o_deref(
-            //     continuation_typing,
-            //     place_expression,
-            //     ownership_qualifier,
-            //     reborrow_exclusion_list,
-            // )
+            Deref(_) => self.o_deref(
+                continuation_typing,
+                place_expression,
+                ownership_qualifier,
+                reborrow_exclusion_list,
+            ),
             PlaceExpression::Place(place) => Ok((
                 self.o_safe_place(
                     continuation_typing,
                     place,
                     ownership_qualifier,
-                    // reborrow_exclusion_list.clone(),
+                    reborrow_exclusion_list.clone(),
                 )?,
                 reborrow_exclusion_list,
             )),
@@ -506,109 +511,92 @@ impl ConcreteTyping {
         }
     }
 
+    /*
+
+    let a = 5;
+    let b = &a;
+    let c = &b;
+
+    **c == 5;
+
+    *(*c) -> *b -> a -> 5
+
+    */
+
     // I think t_move/t_copy should be applied here somehow?
-    // fn o_deref(
-    //     &self,
-    //     continuation_typing: Self,
-    //     place_expression: PlaceExpression,
-    //     ownership_qualifier: OwnershipQualifier,
-    //     reborrow_exclusion_list: VecSet<Place>,
-    // ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
-    //     if let PlaceExpression::Deref(place_expression) = place_expression {
-    //         let (loans, reborrow_exclusion_list) = self._ownership_check(
-    //             continuation_typing.clone(),
-    //             *place_expression,
-    //             ownership_qualifier,
-    //             reborrow_exclusion_list,
-    //         )?;
+    fn o_deref(
+        &self,
+        continuation_typing: Self,
+        place_expression: PlaceExpression,
+        ownership_qualifier: OwnershipQualifier,
+        reborrow_exclusion_list: VecSet<Place>,
+    ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
+        if let PlaceExpression::Deref(place_expression) = place_expression {
+            let (loans, reborrow_exclusion_list) = self._ownership_check(
+                continuation_typing.clone(),
+                *place_expression,
+                ownership_qualifier,
+                reborrow_exclusion_list,
+            )?;
 
-    //         let last_loan = loans.0.last().unwrap();
-    //         let place_expression = last_loan.clone().place_expression;
+            let last_loan = loans.0.last().unwrap();
 
-    //         // ew
-    //         let place_res: Result<Place, OxidizedError> =
-    //             last_loan.clone().place_expression.try_into();
-    //         let place: Place;
-    //         if let Ok(p) = place_res {
-    //             place = p;
-    //         } else {
-    //             if let Deref(pe) = last_loan.clone().place_expression {
-    //                 if let Ok(p) = (*pe).try_into() {
-    //                     place = p;
-    //                 } else {
-    //                     panic!("Unexpected match")
-    //                 }
-    //             } else {
-    //                 panic!("Unexpected match")
-    //             }
-    //         }
+            let reference = self.type_lookup((*last_loan).into())?;
+            match reference.variant {
+                TypeVariant::Reference(reference_type) => {
+                    if ownership_qualifier > reference_type.ownership_qualifier {
+                        return Err(OxidizedError::CannotMove(*reference_type.target_type));
+                    }
+                    let region = self.get_region(reference_type.region_name)?;
+                    let loans = region.loans;
+                    let excl = VecSet(
+                        loans
+                            .0
+                            .iter()
+                            .filter_map(|l| if l.is_reborrow { Some(l.place) } else { None })
+                            .collect::<Vec<Place>>(),
+                    );
 
-    //         let reference = self.type_lookup(place_expression.clone())?;
-    //         match reference.variant {
-    //             TypeVariant::Reference(reference_type) => {
-    //                 if ownership_qualifier > reference_type.ownership_qualifier {
-    //                     return Err(OxidizedError::CannotMove(*reference_type.target_type));
-    //                 }
-    //                 let region = self.get_region(reference_type.region_name)?;
-    //                 let loans = region.loans;
-    //                 let excl = VecSet(
-    //                     loans
-    //                         .0
-    //                         .iter()
-    //                         .filter_map(|l| {
-    //                             if let Deref(pe) = l.place_expression.clone() {
-    //                                 if let Ok(place) = (*pe).try_into() {
-    //                                     Some(place)
-    //                                 } else {
-    //                                     panic!("Unexpected match");
-    //                                 }
-    //                             } else {
-    //                                 None
-    //                             }
-    //                         })
-    //                         .collect::<Vec<Place>>(),
-    //                 );
+                    for region in self.regions.union(continuation_typing.regions).0 {
+                        for loan in region.clone().loans.0 {
+                            if (ownership_qualifier == OwnershipQualifier::Uniq
+                                || loan.ownership_qualifier == OwnershipQualifier::Uniq)
+                                && Into::<PlaceExpression>::into(loan).overlaps(&place_expression)
+                            {
+                                return Err(OxidizedError::UnsafePlace {
+                                    place: last_loan.place,
+                                    ownership_qualifier: ownership_qualifier.to_string(),
+                                    place_expression2: loan.into(),
+                                    ownership_qualifier2: loan.ownership_qualifier.to_string(),
+                                });
+                            }
+                        }
+                    }
 
-    //                 for region in self.regions.union(continuation_typing.regions).0 {
-    //                     for loan in region.clone().loans.0 {
-    //                         if (ownership_qualifier == OwnershipQualifier::Uniq
-    //                             || loan.ownership_qualifier == OwnershipQualifier::Uniq)
-    //                             && loan.place_expression.overlaps(&place_expression)
-    //                         {
-    //                             return Err(OxidizedError::UnsafePlace {
-    //                                 place,
-    //                                 ownership_qualifier: ownership_qualifier.to_string(),
-    //                                 place_expression2: loan.place_expression,
-    //                                 ownership_qualifier2: loan.ownership_qualifier.to_string(),
-    //                             });
-    //                         }
-    //                     }
-    //                 }
-
-    //                 let new_excl = reborrow_exclusion_list
-    //                     .union(excl)
-    //                     .union(VecSet(vec![place.clone()]));
-    //                 Ok((
-    //                     loans.union(VecSet(vec![Loan {
-    //                         ownership_qualifier,
-    //                         place_expression: place.into(),
-    //                     }])),
-    //                     new_excl,
-    //                 ))
-    //             }
-    //             _ => panic!("Unexpected match"),
-    //         }
-    //     } else {
-    //         panic!("Unexpected match")
-    //     }
-    // }
+                    let new_excl = reborrow_exclusion_list
+                        .union(excl)
+                        .union(VecSet(vec![last_loan.place.clone()]));
+                    Ok((
+                        loans.union(VecSet(vec![Loan {
+                            ownership_qualifier,
+                            place_expression: place.into(),
+                        }])),
+                        new_excl,
+                    ))
+                }
+                _ => panic!("Unexpected match"),
+            }
+        } else {
+            panic!("Unexpected match")
+        }
+    }
 
     fn o_safe_place(
         &self,
         continuation_typing: Self,
         place: Place,
         ownership_qualifier: OwnershipQualifier,
-        // reborrow_exclusion_list: VecSet<Place>,
+        reborrow_exclusion_list: VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let converted_place = place.clone().into();
         for region in self.regions.union(continuation_typing.regions).0 {

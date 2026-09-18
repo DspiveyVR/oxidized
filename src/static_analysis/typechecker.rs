@@ -104,29 +104,13 @@ impl Expression {
 
     fn place_expression_usage(
         place_expression: PlaceExpression,
-        stack_typing: ConcreteTyping,
+        mut stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
     ) -> TCReturnResult {
         let type_computation = stack_typing.compute_type(place_expression)?;
 
-        let found_type = stack_typing.type_lookup(place_expression.clone())?;
-        if found_type.is_dead == Ternary::Yes {}
-        if found_type.copyable() {
-            Self::t_copy(
-                place_expression.try_into().unwrap(),
-                stack_typing,
-                continuation_typing,
-            )
-        } else {
-            Self::t_move(
-                Place {
-                    variable: found_type.clone().binding.unwrap().variable,
-                    path: vec![],
-                },
-                found_type,
-                stack_typing,
-                continuation_typing,
-            )
+        for tup in type_computation {
+         // move / copy and assign the result to stack typing to modify the env at each stage.   
         }
     }
 

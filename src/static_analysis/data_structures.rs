@@ -287,6 +287,13 @@ impl ConcreteTyping {
                 if let TypeVariant::Reference(ref_type) = tc.get_type_value().clone().variant {
                     let target = ref_type.target_type;
 
+                    // In theory should be equivalent to the 𝜔 ≲ 𝜔′ restriction in TC-Deref
+                    if !(*target).copyable()
+                        && ref_type.ownership_qualifier == OwnershipQualifier::Shrd
+                    {
+                        return Err(OxidizedError::CannotMove(*target));
+                    }
+
                     if target.is_dead == Ternary::Yes {
                         return Err(OxidizedError::UseOfMovedValue(*target));
                     }

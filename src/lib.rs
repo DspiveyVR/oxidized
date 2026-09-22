@@ -13,3 +13,17 @@ macro_rules! set_snapshot_suffix {
         let _guard = settings.bind_to_scope();
     };
 }
+
+fn test() {
+    struct A<'a> {
+        a: i32,
+        b: &'a i32
+    }
+
+    // let r = 5;
+    // let a = A { a: 4, b: &r};
+    let a = 5;
+    let mut b = &a;
+    let c = &mut b;
+    *c;
+}

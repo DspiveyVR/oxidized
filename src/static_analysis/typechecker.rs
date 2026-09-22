@@ -43,13 +43,14 @@ impl Expression {
                 Expression::Constant(Constant::Unit),
             ), // If a let is by itself not sequenced then its basically just dead.
             Expression::Ref(..) => self.t_borrow(stack_typing, continuation_typing),
-            Expression::Variable(_) | Expression::PathAccess(..) | Expression::Deref(_) => {
-                Self::place_expression_usage(
-                    TryInto::<PlaceExpression>::try_into(self.clone()).expect("Unexpected error"),
-                    stack_typing,
-                    continuation_typing,
-                )
-            }
+            // I think this scenario would try to use it shared but then unique if that doesn't work but I think I'll leave this unimplemented for now.
+            // Expression::Variable(_) | Expression::PathAccess(..) | Expression::Deref(_) => {
+            //     Self::place_expression_usage(
+            //         TryInto::<PlaceExpression>::try_into(self.clone()).expect("Unexpected error"),
+            //         stack_typing,
+            //         continuation_typing,
+            //     )
+            // }
             Expression::Assign(ref var, _) => {
                 if let Ok(place) = TryInto::<Place>::try_into((**var).clone()) {
                     self.t_assign(place, stack_typing, continuation_typing)
@@ -95,24 +96,18 @@ impl Expression {
         }
     }
 
-    /*
-       Somehow need to integrate type computation, copy/move, and ownership check all together.
-       Might make more sense for this logic to be iterative so that these three things can be interleaved.
-       Likely need to read over some of the rules in the paper to make a more informed decision about how to apply
-       them here and in what order.
-    */
+    // fn place_expression_usage(
+    //     place_expression: PlaceExpression,
+    //     stack_typing: ConcreteTyping,
+    //     continuation_typing: ConcreteTyping,
+    //     ownership_qualifier: OwnershipQualifier
+    // ) -> TCReturnResult {
+    //     let type_computation = stack_typing.compute_type(place_expression)?;
+    //     let _ = stack_typing.ownership_check(continuation_typing, place_expression, ownership_qualifier)?;
 
-    fn place_expression_usage(
-        place_expression: PlaceExpression,
-        mut stack_typing: ConcreteTyping,
-        continuation_typing: ConcreteTyping,
-    ) -> TCReturnResult {
-        let type_computation = stack_typing.compute_type(place_expression)?;
-
-        for tup in type_computation {
-         // move / copy and assign the result to stack typing to modify the env at each stage.   
-        }
-    }
+    //     for tup in type_computation {
+    //     }
+    // }
 
     fn t_move(
         place: Place,
@@ -402,6 +397,8 @@ impl Expression {
             let ct_clone = continuation_typing.clone();
             let ct_clone2 = continuation_typing.clone();
             TLetState::new_obj(
+                // TODO: typecheck() or place_expression_usage if the exp is a place expression.
+                // Then the ownerhsip qualifier should be based on whether the type annotation is copyable or not.
                 move || e1.typecheck(st_clone, ct_clone),
                 move |gamma1: ConcreteTyping, return_type: Type| {
                     let annotated_type: Type = type_annotation.clone().into();
@@ -525,8 +522,9 @@ impl ConcreteTyping {
 
             let last_loan = loans.0.last().unwrap();
 
-            let reference = self.type_lookup((*last_loan).into())?;
-            match reference.variant {
+            let reference = self.compute_type((*last_loan).into())?; // probably pass this in as a param.
+            // do i want this to be recursive or iterative?
+            match reference.get_type_value().variant {
                 TypeVariant::Reference(reference_type) => {
                     if ownership_qualifier > reference_type.ownership_qualifier {
                         return Err(OxidizedError::CannotMove(*reference_type.target_type));
@@ -537,7 +535,7 @@ impl ConcreteTyping {
                         loans
                             .0
                             .iter()
-                            .filter_map(|l| if l.is_reborrow { Some(l.place) } else { None })
+                            .filter_map(|l| if l.is_reborrow { Some(l.place) } else { None }) // this might actually need to include the reborrowed ones but just the places without the deref.
                             .collect::<Vec<Place>>(),
                     );
 
@@ -564,6 +562,7 @@ impl ConcreteTyping {
                         loans.union(VecSet(vec![Loan {
                             ownership_qualifier,
                             place_expression: place.into(),
+                            is_reborrow: true,
                         }])),
                         new_excl,
                     ))

@@ -277,6 +277,13 @@ impl ConcreteTyping {
 
      */
 
+    /*
+    
+     might need to have this without ownership param and then do a second pass where I check that but it might be redundant because of the
+     check in the o-deref rule.
+     */
+
+    // TODO: figure out ownership thing
     pub fn compute_type(
         &self,
         place_expression: PlaceExpression,
@@ -286,13 +293,6 @@ impl ConcreteTyping {
                 let tc = self.compute_type(*place_expression)?;
                 if let TypeVariant::Reference(ref_type) = tc.get_type_value().clone().variant {
                     let target = ref_type.target_type;
-
-                    // In theory should be equivalent to the 𝜔 ≲ 𝜔′ restriction in TC-Deref
-                    if !(*target).copyable()
-                        && ref_type.ownership_qualifier == OwnershipQualifier::Shrd
-                    {
-                        return Err(OxidizedError::CannotMove(*target));
-                    }
 
                     if target.is_dead == Ternary::Yes {
                         return Err(OxidizedError::UseOfMovedValue(*target));

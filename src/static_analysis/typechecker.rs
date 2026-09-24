@@ -452,17 +452,13 @@ impl ConcreteTyping {
     fn ownership_check(
         &self,
         continuation_typing: Self,
-        place_expression: PlaceExpression,
+        type_computation: TypeComputation,
         ownership_qualifier: OwnershipQualifier,
     ) -> Result<VecSet<Loan>, OxidizedError> {
-        Ok(self
-            ._ownership_check(
-                continuation_typing,
-                place_expression,
-                ownership_qualifier,
-                VecSet::new(),
-            )?
-            .0)
+        for tup in type_computation.rev() {
+
+        }
+        todo!()
     }
 
     fn _ownership_check(

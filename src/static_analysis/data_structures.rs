@@ -168,22 +168,41 @@ impl TypeEnv for ConcreteTyping {
 pub struct TypeComputation {
     types: Vec<Type>,
     places: Vec<Place>,
-    iter_index: usize,
 }
 
-impl Iterator for TypeComputation {
+pub struct TypeComputationIterator {
+    tc: TypeComputation,
+    head: usize,
+    tail: usize,
+} 
+
+impl Iterator for TypeComputationIterator {
     type Item = (Type, Place);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match (
-            self.types.get(self.iter_index),
-            self.places.get(self.iter_index),
-        ) {
+        match (self.tc.types.get(self.head), self.tc.places.get(self.head)) {
             (Some(typ), Some(place)) => {
-                self.iter_index += 1;
+                self.head += 1;
                 Some((typ.clone(), place.clone()))
             }
             _ => None,
+        }
+    }
+}
+
+// TODO: no need to implement this. just make the regular iterator implementation go in reverse.
+impl DoubleEndedIterator for TypeComputationIterator {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.head < self.tail {
+            match (self.tc.types.get(self.tail), self.tc.places.get(self.tail)) {
+                (Some(typ), Some(place)) => {
+                    self.tail -= 1;
+                    Some((typ.clone(), place.clone()))
+                }
+                _ => None,
+            }
+        } else {
+            None
         }
     }
 }
@@ -193,7 +212,6 @@ impl TypeComputation {
         TypeComputation {
             types: vec![typ],
             places: vec![place],
-            iter_index: 0,
         }
     }
 
@@ -278,10 +296,10 @@ impl ConcreteTyping {
      */
 
     /*
-    
-     might need to have this without ownership param and then do a second pass where I check that but it might be redundant because of the
-     check in the o-deref rule.
-     */
+
+    might need to have this without ownership param and then do a second pass where I check that but it might be redundant because of the
+    check in the o-deref rule.
+    */
 
     // TODO: figure out ownership thing
     pub fn compute_type(

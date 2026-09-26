@@ -455,37 +455,19 @@ impl ConcreteTyping {
         type_computation: TypeComputation,
         ownership_qualifier: OwnershipQualifier,
     ) -> Result<VecSet<Loan>, OxidizedError> {
-        for tup in type_computation.rev() {
-
-        }
-        todo!()
-    }
-
-    fn _ownership_check(
-        &self,
-        continuation_typing: Self,
-        place_expression: PlaceExpression,
-        ownership_qualifier: OwnershipQualifier,
-        reborrow_exclusion_list: VecSet<Place>,
-    ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
-        match place_expression {
-            Deref(_) => self.o_deref(
-                continuation_typing,
-                place_expression,
-                ownership_qualifier,
-                reborrow_exclusion_list,
-            ),
-            PlaceExpression::Place(place) => Ok((
-                self.o_safe_place(
+        for (typ, pe_pointer) in type_computation {
+            match pe_pointer.place_expression {
+                Deref(place_expression) => todo!(),
+                PlaceExpression::Place(place) => self.o_safe_place(
                     continuation_typing,
                     place,
                     ownership_qualifier,
-                    reborrow_exclusion_list.clone(),
-                )?,
-                reborrow_exclusion_list,
-            )),
-            PlaceExpression::PathAccess(..) => todo!(),
+                    reborrow_exclusion_list,
+                ),
+                PlaceExpression::PathAccess(place_expression, items) => todo!(),
+            }
         }
+        todo!()
     }
 
     /*
@@ -504,69 +486,56 @@ impl ConcreteTyping {
     fn o_deref(
         &self,
         continuation_typing: Self,
-        place_expression: PlaceExpression,
+        pe_pointer: PlaceExpressionPointer,
         ownership_qualifier: OwnershipQualifier,
+        reference_type: Type,
         reborrow_exclusion_list: VecSet<Place>,
     ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
-        if let PlaceExpression::Deref(place_expression) = place_expression {
-            let (loans, reborrow_exclusion_list) = self._ownership_check(
-                continuation_typing.clone(),
-                *place_expression,
-                ownership_qualifier,
-                reborrow_exclusion_list,
-            )?;
+        // do i want this to be recursive or iterative?
+        match reference_type.variant {
+            TypeVariant::Reference(reference_type) => {
+                if ownership_qualifier > reference_type.ownership_qualifier {
+                    return Err(OxidizedError::CannotMove(*reference_type.target_type));
+                }
+                let region = self.get_region(reference_type.region_name)?;
+                let loans = region.loans;
+                let excl = VecSet(
+                    loans
+                        .0
+                        .iter()
+                        .filter_map(|l| if l.is_reborrow { Some(l.place) } else { None }) // this might actually need to include the reborrowed ones but just the places without the deref.
+                        .collect::<Vec<Place>>(),
+                );
 
-            let last_loan = loans.0.last().unwrap();
-
-            let reference = self.compute_type((*last_loan).into())?; // probably pass this in as a param.
-            // do i want this to be recursive or iterative?
-            match reference.get_type_value().variant {
-                TypeVariant::Reference(reference_type) => {
-                    if ownership_qualifier > reference_type.ownership_qualifier {
-                        return Err(OxidizedError::CannotMove(*reference_type.target_type));
-                    }
-                    let region = self.get_region(reference_type.region_name)?;
-                    let loans = region.loans;
-                    let excl = VecSet(
-                        loans
-                            .0
-                            .iter()
-                            .filter_map(|l| if l.is_reborrow { Some(l.place) } else { None }) // this might actually need to include the reborrowed ones but just the places without the deref.
-                            .collect::<Vec<Place>>(),
-                    );
-
-                    for region in self.regions.union(continuation_typing.regions).0 {
-                        for loan in region.clone().loans.0 {
-                            if (ownership_qualifier == OwnershipQualifier::Uniq
-                                || loan.ownership_qualifier == OwnershipQualifier::Uniq)
-                                && Into::<PlaceExpression>::into(loan).overlaps(&place_expression)
-                            {
-                                return Err(OxidizedError::UnsafePlace {
-                                    place: last_loan.place,
-                                    ownership_qualifier: ownership_qualifier.to_string(),
-                                    place_expression2: loan.into(),
-                                    ownership_qualifier2: loan.ownership_qualifier.to_string(),
-                                });
-                            }
+                for region in self.regions.union(continuation_typing.regions).0 {
+                    for loan in region.clone().loans.0 {
+                        if (ownership_qualifier == OwnershipQualifier::Uniq
+                            || loan.ownership_qualifier == OwnershipQualifier::Uniq)
+                            && Into::<PlaceExpression>::into(loan).overlaps(&place_expression)
+                        {
+                            return Err(OxidizedError::UnsafePlace {
+                                place: last_loan.place,
+                                ownership_qualifier: ownership_qualifier.to_string(),
+                                place_expression2: loan.into(),
+                                ownership_qualifier2: loan.ownership_qualifier.to_string(),
+                            });
                         }
                     }
-
-                    let new_excl = reborrow_exclusion_list
-                        .union(excl)
-                        .union(VecSet(vec![last_loan.place.clone()]));
-                    Ok((
-                        loans.union(VecSet(vec![Loan {
-                            ownership_qualifier,
-                            place_expression: place.into(),
-                            is_reborrow: true,
-                        }])),
-                        new_excl,
-                    ))
                 }
-                _ => panic!("Unexpected match"),
+
+                let new_excl = reborrow_exclusion_list
+                    .union(excl)
+                    .union(VecSet(vec![last_loan.place.clone()]));
+                Ok((
+                    loans.union(VecSet(vec![Loan {
+                        ownership_qualifier,
+                        place_expression: place.into(),
+                        is_reborrow: true,
+                    }])),
+                    new_excl,
+                ))
             }
-        } else {
-            panic!("Unexpected match")
+            _ => panic!("Unexpected match"),
         }
     }
 

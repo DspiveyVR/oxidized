@@ -165,44 +165,43 @@ impl TypeEnv for ConcreteTyping {
 }
 
 #[derive(Clone)]
+pub struct PlaceExpressionPointer {
+    pub place_expression: PlaceExpression,
+    pub points_to: Place,
+}
+
+#[derive(Clone)]
 pub struct TypeComputation {
     types: Vec<Type>,
-    places: Vec<Place>,
+    places: Vec<PlaceExpressionPointer>,
 }
 
 pub struct TypeComputationIterator {
     tc: TypeComputation,
     head: usize,
-    tail: usize,
-} 
+}
+
+impl IntoIterator for TypeComputation {
+    type Item = (Type, PlaceExpressionPointer);
+
+    type IntoIter = TypeComputationIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let head = self.places.len();
+        TypeComputationIterator { tc: self, head }
+    }
+}
 
 impl Iterator for TypeComputationIterator {
-    type Item = (Type, Place);
+    type Item = (Type, PlaceExpressionPointer);
 
     fn next(&mut self) -> Option<Self::Item> {
         match (self.tc.types.get(self.head), self.tc.places.get(self.head)) {
             (Some(typ), Some(place)) => {
-                self.head += 1;
+                self.head -= 1;
                 Some((typ.clone(), place.clone()))
             }
             _ => None,
-        }
-    }
-}
-
-// TODO: no need to implement this. just make the regular iterator implementation go in reverse.
-impl DoubleEndedIterator for TypeComputationIterator {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        if self.head < self.tail {
-            match (self.tc.types.get(self.tail), self.tc.places.get(self.tail)) {
-                (Some(typ), Some(place)) => {
-                    self.tail -= 1;
-                    Some((typ.clone(), place.clone()))
-                }
-                _ => None,
-            }
-        } else {
-            None
         }
     }
 }
@@ -211,33 +210,36 @@ impl TypeComputation {
     pub fn new(typ: Type, place: Place) -> Self {
         TypeComputation {
             types: vec![typ],
-            places: vec![place],
+            places: vec![PlaceExpressionPointer {
+                place_expression: place.clone().into(),
+                points_to: place,
+            }],
         }
     }
 
-    pub fn get_types(&self) -> &Vec<Type> {
-        &self.types
-    }
+    // pub fn get_types(&self) -> &Vec<Type> {
+    //     &self.types
+    // }
 
-    pub fn get_type(&self, i: usize) -> Option<&Type> {
-        self.types.get(i)
-    }
+    // pub fn get_type(&self, i: usize) -> Option<&Type> {
+    //     self.types.get(i)
+    // }
 
-    pub fn get_place(&self, i: usize) -> Option<&Place> {
-        self.places.get(i)
-    }
+    // pub fn get_place(&self, i: usize) -> Option<&Place> {
+    //     self.places.get(i)
+    // }
 
     pub fn get_type_value(&self) -> &Type {
-        self.types.last().unwrap()
+        self.types.first().unwrap()
     }
 
     pub fn get_place_value(&self) -> &Place {
-        self.places.last().unwrap()
+        &self.places.first().unwrap().points_to
     }
 
-    pub fn append(&self, place: Place, typ: Type) -> Self {
+    pub fn append(&self, pointer: PlaceExpressionPointer, typ: Type) -> Self {
         let mut new_tc = self.clone();
-        new_tc.places.push(place);
+        new_tc.places.push(pointer);
         new_tc.types.push(typ);
 
         new_tc
@@ -308,7 +310,7 @@ impl ConcreteTyping {
     ) -> Result<TypeComputation, OxidizedError> {
         match place_expression {
             PlaceExpression::Deref(place_expression) => {
-                let tc = self.compute_type(*place_expression)?;
+                let tc = self.compute_type(*place_expression.clone())?;
                 if let TypeVariant::Reference(ref_type) = tc.get_type_value().clone().variant {
                     let target = ref_type.target_type;
 
@@ -316,7 +318,11 @@ impl ConcreteTyping {
                         return Err(OxidizedError::UseOfMovedValue(*target));
                     }
 
-                    Ok(tc.append(target.binding.clone().unwrap().into(), *target))
+                    let pointer = PlaceExpressionPointer {
+                        place_expression: *place_expression,
+                        points_to: target.binding.clone().unwrap().into(),
+                    };
+                    Ok(tc.append(pointer, *target))
                 } else {
                     panic!("Unexpected match")
                 }

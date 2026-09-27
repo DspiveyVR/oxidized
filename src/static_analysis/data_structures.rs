@@ -251,7 +251,7 @@ impl TypeComputation {
 }
 
 impl ConcreteTyping {
-    pub fn lookup_type(&self, place: Place) -> Result<&Type, OxidizedError> {
+    pub fn lookup_type(&self, place: Place) -> Result<Type, OxidizedError> {
         if let Some(typ) = self
             .types
             .0
@@ -261,7 +261,7 @@ impl ConcreteTyping {
             if typ.is_dead == Ternary::Yes {
                 return Err(OxidizedError::UseOfMovedValue(typ.clone()));
             }
-            Ok(typ)
+            Ok(typ.clone())
         } else {
             Err(OxidizedError::UseOfUndeclared(place.variable))
         }

@@ -611,10 +611,10 @@ impl TCState for TLetState {
                 result_val
                     .0
                     .clone()
-                    .type_lookup(PlaceExpression::Place(Place {
+                    .lookup_type(Place {
                         variable: binding_result_val.1.binding.unwrap().variable,
                         path: vec![],
-                    }))?;
+                    })?;
             let gc_return_val =
                 (self.gc_fn.take().unwrap())(result_val.0, result_val.1, current_bound_type)?;
             Ok(gc_return_val.1)

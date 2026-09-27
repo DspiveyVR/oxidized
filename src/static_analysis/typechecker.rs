@@ -26,7 +26,6 @@ use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
 use crate::static_analysis::auxiliary::get_unit;
-use crate::static_analysis::data_structures::PlaceExpression::Deref;
 
 impl Expression {
     pub fn typecheck(
@@ -455,19 +454,35 @@ impl ConcreteTyping {
         type_computation: TypeComputation,
         ownership_qualifier: OwnershipQualifier,
     ) -> Result<VecSet<Loan>, OxidizedError> {
+        let mut loans = VecSet::new();
+        let mut reborrow_exclusion_list = VecSet::new();
         for (typ, pe_pointer) in type_computation {
-            match pe_pointer.place_expression {
-                Deref(place_expression) => todo!(),
-                PlaceExpression::Place(place) => self.o_safe_place(
-                    continuation_typing,
-                    place,
-                    ownership_qualifier,
-                    reborrow_exclusion_list,
-                ),
+            match pe_pointer.clone().place_expression {
+                PlaceExpression::Deref(_) => {
+                    let (added_loans, excl) = self.o_deref(
+                        &continuation_typing,
+                        pe_pointer,
+                        ownership_qualifier,
+                        typ,
+                        &reborrow_exclusion_list,
+                    )?;
+                    loans = loans.union(added_loans);
+                    reborrow_exclusion_list = reborrow_exclusion_list.union(excl);
+                }
+                PlaceExpression::Place(place) => {
+                    let added_loans = self.o_safe_place(
+                        &continuation_typing,
+                        place,
+                        ownership_qualifier,
+                        &reborrow_exclusion_list,
+                    )?;
+                    loans = loans.union(added_loans);
+                }
                 PlaceExpression::PathAccess(place_expression, items) => todo!(),
             }
         }
-        todo!()
+
+        Ok(loans)
     }
 
     /*
@@ -485,13 +500,12 @@ impl ConcreteTyping {
     // I think t_move/t_copy should be applied here somehow?
     fn o_deref(
         &self,
-        continuation_typing: Self,
+        continuation_typing: &Self,
         pe_pointer: PlaceExpressionPointer,
         ownership_qualifier: OwnershipQualifier,
         reference_type: Type,
-        reborrow_exclusion_list: VecSet<Place>,
+        reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
-        // do i want this to be recursive or iterative?
         match reference_type.variant {
             TypeVariant::Reference(reference_type) => {
                 if ownership_qualifier > reference_type.ownership_qualifier {
@@ -503,20 +517,27 @@ impl ConcreteTyping {
                     loans
                         .0
                         .iter()
-                        .filter_map(|l| if l.is_reborrow { Some(l.place) } else { None }) // this might actually need to include the reborrowed ones but just the places without the deref.
+                        .filter_map(|l| {
+                            if l.is_reborrow {
+                                Some(l.place.clone())
+                            } else {
+                                None
+                            }
+                        })
                         .collect::<Vec<Place>>(),
                 );
 
-                for region in self.regions.union(continuation_typing.regions).0 {
+                for region in self.regions.union(continuation_typing.clone().regions).0 {
                     for loan in region.clone().loans.0 {
                         if (ownership_qualifier == OwnershipQualifier::Uniq
                             || loan.ownership_qualifier == OwnershipQualifier::Uniq)
-                            && Into::<PlaceExpression>::into(loan).overlaps(&place_expression)
+                            && Into::<PlaceExpression>::into(loan.clone())
+                                .overlaps(&pe_pointer.place_expression)
                         {
                             return Err(OxidizedError::UnsafePlace {
-                                place: last_loan.place,
+                                place: pe_pointer.points_to,
                                 ownership_qualifier: ownership_qualifier.to_string(),
-                                place_expression2: loan.into(),
+                                place_expression2: loan.clone().into(),
                                 ownership_qualifier2: loan.ownership_qualifier.to_string(),
                             });
                         }
@@ -525,11 +546,11 @@ impl ConcreteTyping {
 
                 let new_excl = reborrow_exclusion_list
                     .union(excl)
-                    .union(VecSet(vec![last_loan.place.clone()]));
+                    .union(VecSet(vec![pe_pointer.points_to.clone()]));
                 Ok((
                     loans.union(VecSet(vec![Loan {
                         ownership_qualifier,
-                        place_expression: place.into(),
+                        place: pe_pointer.points_to,
                         is_reborrow: true,
                     }])),
                     new_excl,
@@ -541,13 +562,13 @@ impl ConcreteTyping {
 
     fn o_safe_place(
         &self,
-        continuation_typing: Self,
+        continuation_typing: &Self,
         place: Place,
         ownership_qualifier: OwnershipQualifier,
-        reborrow_exclusion_list: VecSet<Place>,
+        reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let converted_place = place.clone().into();
-        for region in self.regions.union(continuation_typing.regions).0 {
+        for region in self.regions.union(continuation_typing.clone().regions).0 {
             for loan in region.clone().loans.0 {
                 if (ownership_qualifier == OwnershipQualifier::Uniq
                     || loan.ownership_qualifier == OwnershipQualifier::Uniq)

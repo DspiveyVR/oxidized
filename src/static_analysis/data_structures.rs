@@ -104,8 +104,10 @@ pub enum OxidizedError {
     RegionNameConflict(String),
     #[error("Type {0} is dead")]
     UseOfMovedValue(Type),
-    #[error("Cannot move out of {0} while it is behind a shared reference")]
-    CannotMove(Type),
+    // #[error("Cannot move out of {0} while it is behind a shared reference")]
+    // CannotMove(Type),
+    #[error("Cannot use {0} in a uniq context")]
+    ViolatedOwnershipOrdering(ReferenceType),
     #[error("Region {0} must outlive region {1}")]
     ConcreteOutlivesError(ConcreteRegion, ConcreteRegion),
     #[error("Cannot borrow with nonempty region '{0} containing loans: {1}")]
@@ -295,27 +297,25 @@ impl ConcreteTyping {
     *b;
     a;
 
+
      */
-
-    /*
-
-    might need to have this without ownership param and then do a second pass where I check that but it might be redundant because of the
-    check in the o-deref rule.
-    */
-
-    // TODO: figure out ownership thing
     pub fn compute_type(
         &self,
         place_expression: PlaceExpression,
+        ownership_qualifier: OwnershipQualifier,
     ) -> Result<TypeComputation, OxidizedError> {
         match place_expression {
             PlaceExpression::Deref(place_expression) => {
-                let tc = self.compute_type(*place_expression.clone())?;
+                let tc = self.compute_type(*place_expression.clone(), ownership_qualifier)?;
                 if let TypeVariant::Reference(ref_type) = tc.get_type_value().clone().variant {
                     let target = ref_type.target_type;
 
                     if target.is_dead == Ternary::Yes {
                         return Err(OxidizedError::UseOfMovedValue(*target));
+                    }
+
+                    if ownership_qualifier > ref_type.ownership_qualifier {
+                        return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type))
                     }
 
                     let pointer = PlaceExpressionPointer {

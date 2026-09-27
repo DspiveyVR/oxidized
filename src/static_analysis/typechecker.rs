@@ -456,6 +456,7 @@ impl ConcreteTyping {
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let mut loans = VecSet::new();
         let mut reborrow_exclusion_list = VecSet::new();
+
         for (typ, pe_pointer) in type_computation {
             match pe_pointer.clone().place_expression {
                 PlaceExpression::Deref(_) => {
@@ -495,9 +496,20 @@ impl ConcreteTyping {
 
     *(*c) -> *b -> a -> 5
 
+
+    let a = 5;
+    let b = &'x a; x -> { shrd a }
+    let c = &'y *b; y -> { shrd a, shrd *b }
+    let d = &'z *c; z -> { shrd a, shrd *b, shrd *c }
+
+    excl = { b }
+
+
+    I think I might need to restructure these ownership methods as well as the type computation.
+    Seems like the data flow should be different than what I thought.
+
     */
 
-    // I think t_move/t_copy should be applied here somehow?
     fn o_deref(
         &self,
         continuation_typing: &Self,
@@ -509,7 +521,7 @@ impl ConcreteTyping {
         match reference_type.variant {
             TypeVariant::Reference(reference_type) => {
                 if ownership_qualifier > reference_type.ownership_qualifier {
-                    return Err(OxidizedError::CannotMove(*reference_type.target_type));
+                    return Err(OxidizedError::ViolatedOwnershipOrdering(reference_type));
                 }
                 let region = self.get_region(reference_type.region_name)?;
                 let loans = region.loans;
@@ -526,6 +538,11 @@ impl ConcreteTyping {
                         })
                         .collect::<Vec<Place>>(),
                 );
+
+                // TODO: need to check ownership of each loan here. this is actually what adds to the loans.
+
+                // What I'm not sure of yet is if the reborrow exclusion list only gets passed down recursively through the outer region
+                // or if it also gets passed down through each nested dereference. I'm beginning to think it might be the former.
 
                 for region in self.regions.union(continuation_typing.clone().regions).0 {
                     for loan in region.clone().loans.0 {

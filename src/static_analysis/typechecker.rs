@@ -1,4 +1,5 @@
 use core::panic;
+use std::panic::panic_any;
 use std::todo;
 use std::vec;
 
@@ -450,130 +451,90 @@ impl ConcreteTyping {
     // Ownership Safety
     fn ownership_check(
         &self,
-        continuation_typing: Self,
-        type_computation: TypeComputation,
+        continuation_typing: &Self,
+        place_expression: PlaceExpression,
         ownership_qualifier: OwnershipQualifier,
+        reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
-        let mut loans = VecSet::new();
-        let mut reborrow_exclusion_list = VecSet::new();
-
-        for (typ, pe_pointer) in type_computation {
-            match pe_pointer.clone().place_expression {
+        let tc = self.compute_type(place_expression, ownership_qualifier)?;
+        let mut final_loans = VecSet::new();
+        for (typ, pe_ptr) in tc {
+            match pe_ptr.place_expression.clone() {
                 PlaceExpression::Deref(_) => {
-                    let (added_loans, excl) = self.o_deref(
-                        &continuation_typing,
-                        pe_pointer,
+                    final_loans = self.o_deref(
+                        continuation_typing,
                         ownership_qualifier,
+                        reborrow_exclusion_list,
                         typ,
-                        &reborrow_exclusion_list,
-                    )?;
-                    loans = loans.union(added_loans);
-                    reborrow_exclusion_list = reborrow_exclusion_list.union(excl);
+                        pe_ptr.points_to,
+                    )?
                 }
                 PlaceExpression::Place(place) => {
-                    let added_loans = self.o_safe_place(
-                        &continuation_typing,
+                    final_loans = self.o_safe_place(
+                        continuation_typing,
                         place,
                         ownership_qualifier,
-                        &reborrow_exclusion_list,
-                    )?;
-                    loans = loans.union(added_loans);
+                        reborrow_exclusion_list,
+                    )?
                 }
                 PlaceExpression::PathAccess(place_expression, items) => todo!(),
             }
         }
-
-        Ok(loans)
+        
+        Ok(final_loans)
     }
-
-    /*
-
-    let a = 5;
-    let b = &a;
-    let c = &b;
-
-    **c == 5;
-
-    *(*c) -> *b -> a -> 5
-
-
-    let a = 5;
-    let b = &'x a; x -> { shrd a }
-    let c = &'y *b; y -> { shrd a, shrd *b }
-    let d = &'z *c; z -> { shrd a, shrd *b, shrd *c }
-
-    excl = { b }
-
-
-    I think I might need to restructure these ownership methods as well as the type computation.
-    Seems like the data flow should be different than what I thought.
-
-    */
 
     fn o_deref(
         &self,
         continuation_typing: &Self,
-        pe_pointer: PlaceExpressionPointer,
         ownership_qualifier: OwnershipQualifier,
-        reference_type: Type,
         reborrow_exclusion_list: &VecSet<Place>,
-    ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
-        match reference_type.variant {
-            TypeVariant::Reference(reference_type) => {
-                if ownership_qualifier > reference_type.ownership_qualifier {
-                    return Err(OxidizedError::ViolatedOwnershipOrdering(reference_type));
-                }
-                let region = self.get_region(reference_type.region_name)?;
-                let loans = region.loans;
-                let excl = VecSet(
-                    loans
-                        .0
-                        .iter()
-                        .filter_map(|l| {
-                            if l.is_reborrow {
-                                Some(l.place.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<Place>>(),
-                );
-
-                // TODO: need to check ownership of each loan here. this is actually what adds to the loans.
-
-                // What I'm not sure of yet is if the reborrow exclusion list only gets passed down recursively through the outer region
-                // or if it also gets passed down through each nested dereference. I'm beginning to think it might be the former.
-
-                for region in self.regions.union(continuation_typing.clone().regions).0 {
-                    for loan in region.clone().loans.0 {
-                        if (ownership_qualifier == OwnershipQualifier::Uniq
-                            || loan.ownership_qualifier == OwnershipQualifier::Uniq)
-                            && Into::<PlaceExpression>::into(loan.clone())
-                                .overlaps(&pe_pointer.place_expression)
-                        {
-                            return Err(OxidizedError::UnsafePlace {
-                                place: pe_pointer.points_to,
-                                ownership_qualifier: ownership_qualifier.to_string(),
-                                place_expression2: loan.clone().into(),
-                                ownership_qualifier2: loan.ownership_qualifier.to_string(),
-                            });
-                        }
-                    }
-                }
-
-                let new_excl = reborrow_exclusion_list
-                    .union(excl)
-                    .union(VecSet(vec![pe_pointer.points_to.clone()]));
-                Ok((
-                    loans.union(VecSet(vec![Loan {
-                        ownership_qualifier,
-                        place: pe_pointer.points_to,
-                        is_reborrow: true,
-                    }])),
-                    new_excl,
-                ))
+        typ: Type,
+        place: Place,
+    ) -> Result<VecSet<Loan>, OxidizedError> {
+        if let TypeVariant::Reference(ref_type) = typ.variant {
+            if ownership_qualifier > ref_type.ownership_qualifier {
+                return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
             }
-            _ => panic!("Unexpected match"),
+            let region = self.get_region(ref_type.region_name)?;
+            let r_loans = region.loans;
+            let excl = VecSet(
+                r_loans
+                    .0
+                    .iter()
+                    .filter_map(|l| {
+                        if l.is_reborrow {
+                            Some(l.place.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<Place>>(),
+            );
+            let new_excl_list = reborrow_exclusion_list
+                .union(excl)
+                .union(VecSet(vec![place.clone()]));
+
+            let mut new_loans = VecSet::new();
+            for loan in r_loans.0 {
+                new_loans = new_loans.union(self.ownership_check(
+                    continuation_typing,
+                    loan.into(),
+                    ownership_qualifier,
+                    &new_excl_list,
+                )?);
+            }
+            new_loans.0.push(Loan {
+                ownership_qualifier,
+                place,
+                is_reborrow: true,
+            });
+
+            // TODO: safety checks
+
+            Ok(new_loans)
+        } else {
+            panic!("Unexpected match");
         }
     }
 

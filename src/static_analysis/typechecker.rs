@@ -149,7 +149,7 @@ impl Expression {
             move || {
                 let stack_typing = st_clone;
                 let continuation_typing = ct_clone;
-                let _ = stack_typing.ownership_check(
+                let _ = stack_typing._ownership_check(
                     continuation_typing,
                     place_expression.clone(),
                     OwnershipQualifier::Shrd,
@@ -190,7 +190,7 @@ impl Expression {
 
                     let place_expression: PlaceExpression = (*e).clone().try_into()?;
 
-                    let loans = stack_typing.ownership_check(
+                    let loans = stack_typing._ownership_check(
                         continuation_typing,
                         place_expression.clone(),
                         ref_annotation.1,
@@ -454,6 +454,20 @@ impl ConcreteTyping {
         continuation_typing: &Self,
         place_expression: PlaceExpression,
         ownership_qualifier: OwnershipQualifier,
+    ) -> Result<VecSet<Loan>, OxidizedError> {
+        self._ownership_check(
+            continuation_typing,
+            place_expression,
+            ownership_qualifier,
+            &VecSet::new(),
+        )
+    }
+
+    fn _ownership_check(
+        &self,
+        continuation_typing: &Self,
+        place_expression: PlaceExpression,
+        ownership_qualifier: OwnershipQualifier,
         reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let tc = self.compute_type(place_expression, ownership_qualifier)?;
@@ -480,7 +494,7 @@ impl ConcreteTyping {
                 PlaceExpression::PathAccess(place_expression, items) => todo!(),
             }
         }
-        
+
         Ok(final_loans)
     }
 
@@ -517,7 +531,7 @@ impl ConcreteTyping {
 
             let mut new_loans = VecSet::new();
             for loan in r_loans.0 {
-                new_loans = new_loans.union(self.ownership_check(
+                new_loans = new_loans.union(self._ownership_check(
                     continuation_typing,
                     loan.into(),
                     ownership_qualifier,

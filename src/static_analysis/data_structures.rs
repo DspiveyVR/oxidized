@@ -307,7 +307,7 @@ impl ConcreteTyping {
             PlaceExpression::Deref(place_expression) => {
                 let tc = self.compute_type(*place_expression.clone(), ownership_qualifier)?;
                 if let TypeVariant::Reference(ref_type) = tc.get_type_value().clone().variant {
-                    let target = ref_type.target_type;
+                    let target = ref_type.target_type.clone();
 
                     if target.is_dead == Ternary::Yes {
                         return Err(OxidizedError::UseOfMovedValue(*target));

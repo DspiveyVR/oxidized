@@ -100,6 +100,8 @@ pub struct VecSet<T>(pub Vec<T>);
 
 #[derive(Debug, Clone, Error)]
 pub enum OxidizedError {
+    #[error("Cannot create a let binding to a type containing reborrows in its free regions: {0}")]
+    CannotLetBindReborrowedRegions(Type),
     #[error("A region with name {0} already exists")]
     RegionNameConflict(String),
     #[error("Type {0} is dead")]
@@ -298,6 +300,59 @@ impl ConcreteTyping {
 
 
      */
+    pub fn flat_compute_type_no_ord(
+        &self,
+        place_expression: PlaceExpression,
+    ) -> Result<Type, OxidizedError> {
+        match place_expression {
+            PlaceExpression::Deref(place_expression) => {
+                let typ = self.flat_compute_type_no_ord(*place_expression.clone())?;
+                if let TypeVariant::Reference(ref_type) = typ.variant {
+                    let target = ref_type.target_type.clone();
+
+                    if target.is_dead == Ternary::Yes {
+                        return Err(OxidizedError::UseOfMovedValue(*target));
+                    }
+
+                    Ok(*target)
+                } else {
+                    panic!("Unexpected match")
+                }
+            }
+            PlaceExpression::Place(place) => Ok(self.lookup_type(place.clone())?.clone()),
+            PlaceExpression::PathAccess(..) => todo!(),
+        }
+    }
+
+    pub fn flat_compute_type(
+        &self,
+        place_expression: PlaceExpression,
+        ownership_qualifier: OwnershipQualifier,
+    ) -> Result<Type, OxidizedError> {
+        match place_expression {
+            PlaceExpression::Deref(place_expression) => {
+                let typ = self.flat_compute_type(*place_expression.clone(), ownership_qualifier)?;
+                if let TypeVariant::Reference(ref_type) = typ.variant {
+                    let target = ref_type.target_type.clone();
+
+                    if target.is_dead == Ternary::Yes {
+                        return Err(OxidizedError::UseOfMovedValue(*target));
+                    }
+
+                    if ownership_qualifier > ref_type.ownership_qualifier {
+                        return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
+                    }
+
+                    Ok(*target)
+                } else {
+                    panic!("Unexpected match")
+                }
+            }
+            PlaceExpression::Place(place) => Ok(self.lookup_type(place.clone())?.clone()),
+            PlaceExpression::PathAccess(..) => todo!(),
+        }
+    }
+
     pub fn compute_type(
         &self,
         place_expression: PlaceExpression,
@@ -314,7 +369,7 @@ impl ConcreteTyping {
                     }
 
                     if ownership_qualifier > ref_type.ownership_qualifier {
-                        return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type))
+                        return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
                     }
 
                     let pointer = PlaceExpressionPointer {

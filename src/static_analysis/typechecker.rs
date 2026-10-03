@@ -1,5 +1,4 @@
 use core::panic;
-use std::panic::panic_any;
 use std::todo;
 use std::vec;
 
@@ -43,14 +42,13 @@ impl Expression {
                 Expression::Constant(Constant::Unit),
             ), // If a let is by itself not sequenced then its basically just dead.
             Expression::Ref(..) => self.t_borrow(stack_typing, continuation_typing),
-            // I think this scenario would try to use it shared but then unique if that doesn't work but I think I'll leave this unimplemented for now.
-            // Expression::Variable(_) | Expression::PathAccess(..) | Expression::Deref(_) => {
-            //     Self::place_expression_usage(
-            //         TryInto::<PlaceExpression>::try_into(self.clone()).expect("Unexpected error"),
-            //         stack_typing,
-            //         continuation_typing,
-            //     )
-            // }
+            Expression::Variable(_) | Expression::PathAccess(..) | Expression::Deref(_) => {
+                Self::place_expression_usage(
+                    TryInto::<PlaceExpression>::try_into(self.clone()).expect("Unexpected error"),
+                    stack_typing,
+                    continuation_typing,
+                )
+            }
             Expression::Assign(ref var, _) => {
                 if let Ok(place) = TryInto::<Place>::try_into((**var).clone()) {
                     self.t_assign(place, stack_typing, continuation_typing)
@@ -96,22 +94,57 @@ impl Expression {
         }
     }
 
-    // fn place_expression_usage(
-    //     place_expression: PlaceExpression,
-    //     stack_typing: ConcreteTyping,
-    //     continuation_typing: ConcreteTyping,
-    //     ownership_qualifier: OwnershipQualifier
-    // ) -> TCReturnResult {
-    //     let type_computation = stack_typing.compute_type(place_expression)?;
-    //     let _ = stack_typing.ownership_check(continuation_typing, place_expression, ownership_qualifier)?;
+    fn place_expression_usage(
+        place_expression: PlaceExpression,
+        stack_typing: ConcreteTyping,
+        continuation_typing: ConcreteTyping,
+    ) -> TCReturnResult {
+        if let Ok(typ) =
+            stack_typing.flat_compute_type(place_expression.clone(), OwnershipQualifier::Shrd)
+        {
+            if typ.copyable() {
+                let _ = stack_typing.ownership_check(
+                    &continuation_typing,
+                    place_expression,
+                    OwnershipQualifier::Shrd,
+                )?;
 
-    //     for tup in type_computation {
-    //     }
-    // }
+                Expression::t_copy(typ, stack_typing, continuation_typing)
+            } else {
+                match stack_typing
+                    .flat_compute_type(place_expression.clone(), OwnershipQualifier::Uniq)
+                {
+                    Ok(typ) => {
+                        let _ = stack_typing.ownership_check(
+                            &continuation_typing,
+                            place_expression,
+                            OwnershipQualifier::Uniq,
+                        )?;
+
+                        Expression::t_move(typ, stack_typing, continuation_typing)
+                    }
+                    Err(err) => Err(err),
+                }
+            }
+        } else {
+            match stack_typing.flat_compute_type(place_expression.clone(), OwnershipQualifier::Uniq)
+            {
+                Ok(typ) => {
+                    let _ = stack_typing.ownership_check(
+                        &continuation_typing,
+                        place_expression,
+                        OwnershipQualifier::Uniq,
+                    )?;
+
+                    Expression::t_move(typ, stack_typing, continuation_typing)
+                }
+                Err(err) => Err(err),
+            }
+        }
+    }
 
     fn t_move(
-        place: Place,
-        found_type: Type,
+        typ: Type,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
     ) -> TCReturnResult {
@@ -121,16 +154,11 @@ impl Expression {
             move || {
                 let mut stack_typing = st_clone;
                 let continuation_typing = ct_clone;
-                let _ = stack_typing.o_safe_place(
-                    continuation_typing,
-                    place.clone(),
-                    OwnershipQualifier::Uniq,
-                )?;
-                let mut return_type = found_type.clone();
+                let mut return_type = typ.clone();
                 return_type.binding = None;
-                let mut dead_type = found_type.clone();
+                let mut dead_type = typ.clone();
                 dead_type.is_dead = Ternary::Yes;
-                stack_typing = stack_typing.set_type(found_type, dead_type);
+                stack_typing = stack_typing.set_type(typ, dead_type);
 
                 Ok((None, TCReturn::TCResult(Ok((stack_typing, return_type)))))
             },
@@ -139,7 +167,7 @@ impl Expression {
     }
 
     fn t_copy(
-        place_expression: PlaceExpression,
+        typ: Type,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
     ) -> TCReturnResult {
@@ -149,16 +177,10 @@ impl Expression {
             move || {
                 let stack_typing = st_clone;
                 let continuation_typing = ct_clone;
-                let _ = stack_typing._ownership_check(
-                    continuation_typing,
-                    place_expression.clone(),
-                    OwnershipQualifier::Shrd,
-                )?;
-                let found_type = stack_typing.type_lookup(place_expression)?;
-                if found_type.is_dead != Ternary::No {
-                    return Err(OxidizedError::UseOfMovedValue(found_type));
+                if typ.is_dead != Ternary::No {
+                    return Err(OxidizedError::UseOfMovedValue(typ));
                 }
-                let mut return_type = found_type.clone();
+                let mut return_type = typ.clone();
                 return_type.binding = None;
 
                 Ok((None, TCReturn::TCResult(Ok((stack_typing, return_type)))))
@@ -190,13 +212,15 @@ impl Expression {
 
                     let place_expression: PlaceExpression = (*e).clone().try_into()?;
 
-                    let loans = stack_typing._ownership_check(
-                        continuation_typing,
+                    let loans = stack_typing.ownership_check(
+                        &continuation_typing,
                         place_expression.clone(),
                         ref_annotation.1,
                     )?;
 
-                    let place_expression_type = stack_typing.type_lookup(place_expression)?;
+                    let place_expression_type = stack_typing
+                        .flat_compute_type(place_expression, ref_annotation.1)?
+                        .clone();
 
                     let ref_type = Type {
                         binding: None,
@@ -265,7 +289,7 @@ impl Expression {
                 // Similar to one part of the WF-StackTyping rule. The accuracy of this compared to the paper is questionable.
                 for region in &new_stack_typing.regions.0 {
                     for loan in &region.loans.0 {
-                        match env.type_lookup(loan.clone().into()) {
+                        match env.flat_compute_type_no_ord(loan.clone().into()) {
                             Ok(typ) => {
                                 if typ.clone().is_dead != Ternary::No {
                                     return Err(OxidizedError::LifetimeError(
@@ -301,7 +325,7 @@ impl Expression {
             TAssignState::new_obj(
                 move || e.typecheck(st_clone, ct_clone),
                 move |gamma1: ConcreteTyping, return_type: Type| {
-                    let place_type = gamma1.type_lookup(place.clone().into())?;
+                    let place_type = gamma1.lookup_type(place.clone().into())?;
                     if !return_type.eq_unchecked_regions(&place_type) {
                         return Err(OxidizedError::MismatchedTypes {
                             expected: place_type,
@@ -309,12 +333,12 @@ impl Expression {
                         });
                     }
 
-                    // TODO: kill rules
+                    let gamma1_prime = gamma1.kill_rules(place.clone());
 
                     // TODO: Is unique restriction. At the moment I can't really figure out a scenario that would violate this condition
                     // so for now I'll just not implement it.
 
-                    gamma1.rewrite_regions(
+                    gamma1_prime.rewrite_regions(
                         return_type.clone(),
                         place_type.clone(),
                         RegionRewriteMode::Equals,
@@ -326,9 +350,12 @@ impl Expression {
                         ));
                     }
 
-                    if let Err(err) =
-                        gamma1.o_safe_place(ct_clone2, place, OwnershipQualifier::Uniq)
-                    {
+                    if let Err(err) = gamma1_prime.o_safe_place(
+                        &ct_clone2,
+                        place,
+                        OwnershipQualifier::Uniq,
+                        &VecSet::new(),
+                    ) {
                         if place_type.is_dead != Ternary::Yes {
                             return Err(err);
                         }
@@ -340,7 +367,7 @@ impl Expression {
                     Ok((
                         None,
                         TCReturn::TCResult(Ok((
-                            gamma1.set_type(place_type.clone(), bound_type),
+                            gamma1_prime.set_type(place_type.clone(), bound_type),
                             get_unit(),
                         ))),
                     ))
@@ -394,11 +421,10 @@ impl Expression {
         } = self
         {
             let st_clone = stack_typing.clone();
+            let st_clone2 = stack_typing.clone();
             let ct_clone = continuation_typing.clone();
             let ct_clone2 = continuation_typing.clone();
             TLetState::new_obj(
-                // TODO: typecheck() or place_expression_usage if the exp is a place expression.
-                // Then the ownerhsip qualifier should be based on whether the type annotation is copyable or not.
                 move || e1.typecheck(st_clone, ct_clone),
                 move |gamma1: ConcreteTyping, return_type: Type| {
                     let annotated_type: Type = type_annotation.clone().into();
@@ -408,7 +434,15 @@ impl Expression {
                             found: return_type,
                         });
                     }
-                    // TODO: check for all free regions in ta. r rnrb
+
+                    for region in annotated_type.free_regions(&st_clone2) {
+                        if !st_clone2.rnrb(region) {
+                            return Err(OxidizedError::CannotLetBindReborrowedRegions(
+                                annotated_type,
+                            ));
+                        }
+                    }
+
                     let mut bound_type = annotated_type;
                     bound_type.binding = Some(Binding {
                         variable: name.to_string(),
@@ -540,11 +574,41 @@ impl ConcreteTyping {
             }
             new_loans.0.push(Loan {
                 ownership_qualifier,
-                place,
+                place: place.clone(),
                 is_reborrow: true,
             });
 
-            // TODO: safety checks
+            let converted_place = place.clone().into();
+            // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means.
+            let check_res = (|| {
+                for region in self.regions.union(continuation_typing.clone().regions).0 {
+                    for loan in region.clone().loans.0 {
+                        if (ownership_qualifier == OwnershipQualifier::Uniq
+                            || loan.ownership_qualifier == OwnershipQualifier::Uniq)
+                            && Into::<PlaceExpression>::into(loan.place.clone())
+                                .overlaps(&converted_place)
+                        {
+                            return Err(OxidizedError::UnsafePlace {
+                                place,
+                                ownership_qualifier: ownership_qualifier.to_string(),
+                                place_expression2: loan.place.into(),
+                                ownership_qualifier2: loan.ownership_qualifier.to_string(),
+                            });
+                        }
+                    }
+                }
+                Ok(())
+            })();
+
+            if let Err(err) = check_res {
+                for (place, typ) in self.explode().0 {
+                    if let TypeVariant::Reference(_) = typ.variant {
+                        if !reborrow_exclusion_list.0.contains(&place) {
+                            return Err(err);
+                        }
+                    }
+                }
+            }
 
             Ok(new_loans)
         } else {
@@ -560,23 +624,37 @@ impl ConcreteTyping {
         reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let converted_place = place.clone().into();
-        for region in self.regions.union(continuation_typing.clone().regions).0 {
-            for loan in region.clone().loans.0 {
-                if (ownership_qualifier == OwnershipQualifier::Uniq
-                    || loan.ownership_qualifier == OwnershipQualifier::Uniq)
-                    && Into::<PlaceExpression>::into(loan.place.clone()).overlaps(&converted_place)
-                {
-                    return Err(OxidizedError::UnsafePlace {
-                        place,
-                        ownership_qualifier: ownership_qualifier.to_string(),
-                        place_expression2: loan.place.into(),
-                        ownership_qualifier2: loan.ownership_qualifier.to_string(),
-                    });
+        let place_clone = place.clone();
+        // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means.
+        let check_res = (|| {
+            for region in self.regions.union(continuation_typing.clone().regions).0 {
+                for loan in region.clone().loans.0 {
+                    if (ownership_qualifier == OwnershipQualifier::Uniq
+                        || loan.ownership_qualifier == OwnershipQualifier::Uniq)
+                        && Into::<PlaceExpression>::into(loan.place.clone())
+                            .overlaps(&converted_place)
+                    {
+                        return Err(OxidizedError::UnsafePlace {
+                            place: place_clone,
+                            ownership_qualifier: ownership_qualifier.to_string(),
+                            place_expression2: loan.place.into(),
+                            ownership_qualifier2: loan.ownership_qualifier.to_string(),
+                        });
+                    }
+                }
+            }
+            Ok(())
+        })();
+
+        if let Err(err) = check_res {
+            for (place, typ) in self.explode().0 {
+                if let TypeVariant::Reference(_) = typ.variant {
+                    if !reborrow_exclusion_list.0.contains(&place) {
+                        return Err(err);
+                    }
                 }
             }
         }
-
-        // TODO: reborrow exclusion list (the or condition)
 
         Ok(VecSet(vec![Loan {
             ownership_qualifier,

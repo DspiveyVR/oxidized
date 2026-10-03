@@ -1,8 +1,27 @@
-use std::println;
-
 use super::data_structures::*;
 
 impl ConcreteTyping {
+    pub fn kill_rules(&self, place: Place) -> ConcreteTyping {
+        let mut new_type_env = self.clone();
+        for region in new_type_env.regions.0.iter_mut() {
+            *region = ConcreteRegion {
+                name: region.name.clone(),
+                loans: VecSet(
+                    region
+                        .loans
+                        .0
+                        .iter()
+                        .filter(|l| !(l.place == place && l.is_reborrow))
+                        .cloned()
+                        .collect(),
+                ),
+                scope: region.scope,
+            };
+        }
+
+        new_type_env
+    }
+
     // FIXME: make this look less stupid
     pub fn rnrb(&self, region: ConcreteRegion) -> bool {
         let exploded = self.explode();
@@ -154,6 +173,19 @@ impl PlaceExpression {
             true
         } else {
             false
+        }
+    }
+}
+
+impl Type {
+    pub fn free_regions(&self, type_env: &ConcreteTyping) -> Vec<ConcreteRegion> {
+        if let TypeVariant::Reference(ref_type) = self.variant.clone() {
+            let mut regions = ref_type.target_type.free_regions(type_env);
+            regions.push(type_env.get_region(ref_type.region_name).unwrap());
+
+            regions
+        } else {
+            vec![]
         }
     }
 }

@@ -237,7 +237,7 @@ impl Expression {
                         is_sized: Ternary::Yes,
                         is_dead: Ternary::No,
                     };
-
+                    
                     region = region.set_loans(loans);
 
                     Ok((

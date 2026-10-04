@@ -373,6 +373,7 @@ impl ConcreteTyping {
 
                     let pointer = PlaceExpressionPointer {
                         place_expression: *place_expression,
+                        // FIXME: This as well as the other ones need to be determined based on loans and not on the type's binding. Will need a method for this.
                         points_to: target.binding.clone().unwrap().into(),
                     };
                     Ok(tc.append(pointer, target))

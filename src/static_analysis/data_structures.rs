@@ -1,4 +1,7 @@
-use crate::ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation};
+use crate::{
+    ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation},
+    static_analysis::auxiliary::err_if_dead,
+};
 use serde::Serialize;
 use std::{fmt::Debug, panic, todo, vec};
 // use color_print;
@@ -100,11 +103,13 @@ pub struct VecSet<T>(pub Vec<T>);
 
 #[derive(Debug, Clone, Error)]
 pub enum OxidizedError {
+    #[error("'{0} must be unique to {1} in {2}")]
+    RegionMustBeUnique(String, Place, ConcreteTyping),
     #[error("Cannot create a let binding to a type containing reborrows in its free regions: {0}")]
     CannotLetBindReborrowedRegions(Type),
     #[error("A region with name {0} already exists")]
     RegionNameConflict(String),
-    #[error("Type {0} is dead")]
+    #[error("Use of moved value with type: {0}")]
     UseOfMovedValue(Type),
     // #[error("Cannot move out of {0} while it is behind a shared reference")]
     // CannotMove(Type),
@@ -261,9 +266,8 @@ impl ConcreteTyping {
             .iter()
             .find(|t| t.binding.clone().unwrap().variable == place.variable)
         {
-            if typ.is_dead == Ternary::Yes {
-                return Err(OxidizedError::UseOfMovedValue(typ.clone()));
-            }
+            // I thikn these err calls might be redundant anyway
+            // let typ = err_if_dead(typ.clone())?;
             Ok(typ.clone())
         } else {
             Err(OxidizedError::UseOfUndeclared(place.variable))
@@ -310,9 +314,8 @@ impl ConcreteTyping {
                 if let TypeVariant::Reference(ref_type) = typ.variant {
                     let target = ref_type.target_type.clone();
 
-                    if target.is_dead == Ternary::Yes {
-                        return Err(OxidizedError::UseOfMovedValue(*target));
-                    }
+                    // I thikn these err calls might be redundant anyway
+                    // let target = err_if_dead(*target)?;
 
                     Ok(*target)
                 } else {
@@ -335,15 +338,13 @@ impl ConcreteTyping {
                 if let TypeVariant::Reference(ref_type) = typ.variant {
                     let target = ref_type.target_type.clone();
 
-                    if target.is_dead == Ternary::Yes {
-                        return Err(OxidizedError::UseOfMovedValue(*target));
-                    }
+                    let target = err_if_dead(*target)?;
 
                     if ownership_qualifier > ref_type.ownership_qualifier {
                         return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
                     }
 
-                    Ok(*target)
+                    Ok(target)
                 } else {
                     panic!("Unexpected match")
                 }
@@ -364,9 +365,7 @@ impl ConcreteTyping {
                 if let TypeVariant::Reference(ref_type) = tc.get_type_value().clone().variant {
                     let target = ref_type.target_type.clone();
 
-                    if target.is_dead == Ternary::Yes {
-                        return Err(OxidizedError::UseOfMovedValue(*target));
-                    }
+                    let target = err_if_dead(*target)?;
 
                     if ownership_qualifier > ref_type.ownership_qualifier {
                         return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
@@ -376,7 +375,7 @@ impl ConcreteTyping {
                         place_expression: *place_expression,
                         points_to: target.binding.clone().unwrap().into(),
                     };
-                    Ok(tc.append(pointer, *target))
+                    Ok(tc.append(pointer, target))
                 } else {
                     panic!("Unexpected match")
                 }

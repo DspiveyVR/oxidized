@@ -2,7 +2,7 @@
 source: tests/typecheck_tests.rs
 description: "\n    letrgn<'x> {\n        let mut x: u32 = 5;\n        letrgn<'z> {\n            let y: &'x shrd u32 = &'x shrd x; ()\n        };\n        let z: &'x uniq u32 = &'x uniq x; ()\n    }\n    "
 ---
-Step 1: Let
+Step 1: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -11,7 +11,7 @@ ConcreteTyping {
 	]
  }
 
-Step 2: Expr
+Step 2: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -20,7 +20,7 @@ ConcreteTyping {
 	]
  }
 
-Step 3: Let
+Step 3: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -29,17 +29,7 @@ ConcreteTyping {
 	]
  }
 
-Step 4: Seq
-ConcreteTyping { 
-	r: [
-		'x -> {  }
-	]
- 	𝜏: [
-		mut x := u32
-	]
- }
-
-Step 5: Letrgn
+Step 4: t_seq
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -49,7 +39,17 @@ ConcreteTyping {
 	]
  }
 
-Step 6: Let
+Step 5: t_letrgn
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		mut x := u32
+	]
+ }
+
+Step 6: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -60,7 +60,7 @@ ConcreteTyping {
 	]
  }
 
-Step 7: Expr
+Step 7: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -71,7 +71,7 @@ ConcreteTyping {
 	]
  }
 
-Step 8: Let
+Step 8: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -82,7 +82,7 @@ ConcreteTyping {
 	]
  }
 
-Step 9: Expr
+Step 9: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> { shared x },
@@ -94,7 +94,7 @@ ConcreteTyping {
 	]
  }
 
-Step 10: Seq
+Step 10: t_seq
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -104,7 +104,7 @@ ConcreteTyping {
 	]
  }
 
-Step 11: Let
+Step 11: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -114,7 +114,7 @@ ConcreteTyping {
 	]
  }
 
-Step 12: Expr
+Step 12: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -124,7 +124,7 @@ ConcreteTyping {
 	]
  }
 
-Step 13: Let
+Step 13: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -134,7 +134,7 @@ ConcreteTyping {
 	]
  }
 
-Step 14: Expr
+Step 14: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> { unique x }

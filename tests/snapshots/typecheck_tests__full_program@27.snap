@@ -2,7 +2,7 @@
 source: tests/typecheck_tests.rs
 description: "\n    letrgn<'x, 'y> {\n        let x: u32 = 5;\n        let a: &'x uniq u32 = &'x uniq x;\n        let b: &'y uniq &'x uniq u32 = &'y uniq a;\n        a\n    }\n    "
 ---
-Step 1: Let
+Step 1: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -12,7 +12,7 @@ ConcreteTyping {
 	]
  }
 
-Step 2: Expr
+Step 2: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -22,7 +22,7 @@ ConcreteTyping {
 	]
  }
 
-Step 3: Let
+Step 3: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -32,18 +32,7 @@ ConcreteTyping {
 	]
  }
 
-Step 4: Let
-ConcreteTyping { 
-	r: [
-		'x -> {  },
-		'y -> {  }
-	]
- 	𝜏: [
-		 x := u32
-	]
- }
-
-Step 5: Expr
+Step 4: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -54,7 +43,7 @@ ConcreteTyping {
 	]
  }
 
-Step 6: Let
+Step 5: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -65,7 +54,18 @@ ConcreteTyping {
 	]
  }
 
-Step 7: Let
+Step 6: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 7: t_let
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -77,7 +77,7 @@ ConcreteTyping {
 	]
  }
 
-Step 8: Expr
+Step 8: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -89,7 +89,7 @@ ConcreteTyping {
 	]
  }
 
-Step 9: Let
+Step 9: t_let
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -101,18 +101,5 @@ ConcreteTyping {
 	]
  }
 
-Step 10: Expr
-ConcreteTyping { 
-	r: [
-		'x -> { unique x },
-		'y -> { unique a }
-	]
- 	𝜏: [
-		 x := u32,
-		 a := &'x unique u32,
-		 b := &'y unique &'x unique u32
-	]
- }
-
-Step 11: END
+Step 10: END
 Cannot use a uniquely while a unique reference to a exists

@@ -25,6 +25,7 @@ use super::tc_state_machine::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
+use crate::static_analysis::auxiliary::err_if_dead;
 use crate::static_analysis::auxiliary::get_unit;
 
 impl Expression {
@@ -68,6 +69,7 @@ impl Expression {
                         ))
                     },
                     (stack_typing, continuation_typing),
+                    "t_constant".to_string(),
                 )
             }
             _ => panic!("Unexpected error"),
@@ -154,6 +156,7 @@ impl Expression {
             move || {
                 let mut stack_typing = st_clone;
                 let continuation_typing = ct_clone;
+                let typ = err_if_dead(typ)?;
                 let mut return_type = typ.clone();
                 return_type.binding = None;
                 let mut dead_type = typ.clone();
@@ -163,6 +166,7 @@ impl Expression {
                 Ok((None, TCReturn::TCResult(Ok((stack_typing, return_type)))))
             },
             (stack_typing, continuation_typing),
+            "t_move".to_string(),
         )
     }
 
@@ -177,15 +181,14 @@ impl Expression {
             move || {
                 let stack_typing = st_clone;
                 let continuation_typing = ct_clone;
-                if typ.is_dead != Ternary::No {
-                    return Err(OxidizedError::UseOfMovedValue(typ));
-                }
+                let typ = err_if_dead(typ)?;
                 let mut return_type = typ.clone();
                 return_type.binding = None;
 
                 Ok((None, TCReturn::TCResult(Ok((stack_typing, return_type)))))
             },
             (stack_typing, continuation_typing),
+            "t_copy".to_string(),
         )
     }
 
@@ -218,9 +221,11 @@ impl Expression {
                         ref_annotation.1,
                     )?;
 
-                    let place_expression_type = stack_typing
-                        .flat_compute_type(place_expression, ref_annotation.1)?
-                        .clone();
+                    let place_expression_type = err_if_dead(
+                        stack_typing
+                            .flat_compute_type(place_expression, ref_annotation.1)?
+                            .clone(),
+                    )?;
 
                     let ref_type = Type {
                         binding: None,
@@ -247,6 +252,7 @@ impl Expression {
                 }
             },
             (stack_typing.clone(), continuation_typing),
+            "t_borrow".to_string(),
         )
     }
 
@@ -309,6 +315,7 @@ impl Expression {
                 ))
             },
             (stack_typing.clone(), continuation_typing.clone()),
+            "t_letrgn".to_string(),
         )
     }
 
@@ -320,6 +327,7 @@ impl Expression {
     ) -> TCReturnResult {
         if let Expression::Assign(_, e) = self {
             let st_clone = stack_typing.clone();
+            let st_clone2 = stack_typing.clone();
             let ct_clone = continuation_typing.clone();
             let ct_clone2 = continuation_typing.clone();
             TAssignState::new_obj(
@@ -335,8 +343,21 @@ impl Expression {
 
                     let gamma1_prime = gamma1.kill_rules(place.clone());
 
-                    // TODO: Is unique restriction. At the moment I can't really figure out a scenario that would violate this condition
-                    // so for now I'll just not implement it.
+                    if let TypeVariant::Reference(assignment_ref_type) = &place_type.variant {
+                        let r = &assignment_ref_type.region_name;
+                        for (place_prime, typ) in gamma1_prime.explode().0.iter() {
+                            if let TypeVariant::Reference(ref_type) = &typ.variant {
+                                let r_prime = &ref_type.region_name;
+                                if &place != place_prime && r == r_prime {
+                                    return Err(OxidizedError::RegionMustBeUnique(
+                                        r.clone(),
+                                        place.clone(),
+                                        st_clone2,
+                                    ));
+                                }
+                            }
+                        }
+                    }
 
                     gamma1_prime.rewrite_regions(
                         return_type.clone(),
@@ -373,6 +394,7 @@ impl Expression {
                     ))
                 },
                 (stack_typing.clone(), continuation_typing.clone()),
+                "t_assign".to_string(),
             )
         } else {
             panic!("Unexpected error");
@@ -400,6 +422,7 @@ impl Expression {
                         )
                     },
                     (stack_typing.clone(), cont_clone2),
+                    "t_seq".to_string(),
                 )
             }
         } else {
@@ -473,6 +496,7 @@ impl Expression {
                     ))
                 },
                 (stack_typing.clone(), continuation_typing.clone()),
+                "t_let".to_string(),
             )
         } else {
             panic!("Unexpected error");
@@ -579,7 +603,7 @@ impl ConcreteTyping {
             });
 
             let converted_place = place.clone().into();
-            // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means.
+            // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means. Maybe not relevant until I have tuples.
             let check_res = (|| {
                 for region in self.regions.union(continuation_typing.clone().regions).0 {
                     for loan in region.clone().loans.0 {
@@ -625,7 +649,7 @@ impl ConcreteTyping {
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let converted_place = place.clone().into();
         let place_clone = place.clone();
-        // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means.
+        // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means. Maybe not relevant until I have tuples.
         let check_res = (|| {
             for region in self.regions.union(continuation_typing.clone().regions).0 {
                 for loan in region.clone().loans.0 {

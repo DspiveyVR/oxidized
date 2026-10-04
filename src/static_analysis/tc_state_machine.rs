@@ -43,18 +43,22 @@ pub trait TCState: Display {
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping);
 
     fn get_state_name(&self) -> String;
+
+    fn get_method_name(&self) -> String;
 }
 
 pub struct TExprState {
     e_fn: Option<Box<TCFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
+    method_name: String,
 }
 
 impl Display for TExprState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "TExprState {{ state: ({}, {}) }}",
+            "TExprState:{} {{ state: ({}, {}) }}",
+            self.get_method_name(),
             self.get_env_state().0,
             self.get_env_state().1
         )
@@ -66,13 +70,15 @@ pub struct TLetrgnState {
     pop_vars_fn: Option<Box<TCPopVarsFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     e_result: Option<TCResult>,
+    method_name: String,
 }
 
 impl Display for TLetrgnState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "TLetrgnState {{ state: ({}, {}), e_result: {} }}",
+            "TLetrgnState:{} {{ state: ({}, {}), e_result: {} }}",
+            self.get_method_name(),
             self.get_env_state().0,
             self.get_env_state().1,
             match &self.e_result {
@@ -89,13 +95,15 @@ pub struct TSeqState {
     e2_fn: Option<Box<TCConsumerFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     e1_result: Option<TCResult>,
+    method_name: String,
 }
 
 impl Display for TSeqState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "TSeqState {{ state: ({}, {}), e1_result: {} }}",
+            "TSeqState:{} {{ state: ({}, {}), e1_result: {} }}",
+            self.get_method_name(),
             self.get_env_state().0,
             self.get_env_state().1,
             match &self.e1_result {
@@ -115,19 +123,22 @@ pub struct TLetState {
     env_state: (ConcreteTyping, ConcreteTyping),
     e1_result: Option<TCResult>,
     binding_result: Option<TCResult>,
+    method_name: String,
 }
 
 pub struct TAssignState {
     e_fn: Option<Box<TCFn>>,
     binding_fn: Option<Box<TC2ConsumerFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
+    method_name: String,
 }
 
 impl Display for TAssignState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "TAssignState {{ state: ({}, {})}}",
+            "TAssignState:{} {{ state: ({}, {})}}",
+            self.get_method_name(),
             self.get_env_state().0,
             self.get_env_state().1,
         )
@@ -138,7 +149,8 @@ impl Display for TLetState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "TLetState {{ state: ({}, {}), e1_result: {}, binding_result: {} }}",
+            "TLetState:{} {{ state: ({}, {}), e1_result: {}, binding_result: {} }}",
+            self.get_method_name(),
             self.get_env_state().0,
             self.get_env_state().1,
             match &self.e1_result {
@@ -197,18 +209,24 @@ impl TCState for TExprState {
     fn get_state_name(&self) -> String {
         "Expr".to_string()
     }
+
+    fn get_method_name(&self) -> String {
+        self.method_name.clone()
+    }
 }
 
 impl TExprState {
     pub fn new_obj<TCFn: FnOnce() -> TCReturnResult + 'static>(
         e_fn: TCFn,
         env_state: (ConcreteTyping, ConcreteTyping),
+        method_name: String,
     ) -> TCReturnResult {
         Ok((
             None,
             TCReturn::TCState(Box::new(Self {
                 e_fn: Some(Box::new(e_fn)),
                 env_state,
+                method_name,
             })),
         ))
     }
@@ -262,6 +280,10 @@ impl TCState for TLetrgnState {
     fn get_state_name(&self) -> String {
         "Letrgn".to_string()
     }
+
+    fn get_method_name(&self) -> String {
+        self.method_name.clone()
+    }
 }
 
 impl TLetrgnState {
@@ -272,6 +294,7 @@ impl TLetrgnState {
         e_fn: TCFn,
         pop_vars_fn: TCPopVarsFn,
         env_state: (ConcreteTyping, ConcreteTyping),
+        method_name: String,
     ) -> TCReturnResult {
         Ok((
             None,
@@ -280,6 +303,7 @@ impl TLetrgnState {
                 pop_vars_fn: Some(Box::new(pop_vars_fn)),
                 env_state,
                 e_result: None,
+                method_name,
             })),
         ))
     }
@@ -347,7 +371,7 @@ impl TCState for TSeqState {
             let e1_return = (self.e1_fn.take().unwrap())()?;
             match e1_return {
                 (_, TCReturn::TCResult(result)) => {
-                    let e1_result = err_if_dead(result);
+                    let e1_result = result;
                     self.e1_result = Some(e1_result.clone());
                     let e1_value = e1_result?;
                     if DEBUG_TCSTATE {
@@ -358,7 +382,7 @@ impl TCState for TSeqState {
                     Ok(e2_return)
                 }
                 (_, TCReturn::TCState(state)) => {
-                    let e1_result = err_if_dead(state.evaluate());
+                    let e1_result = state.evaluate();
                     self.e1_result = Some(e1_result.clone());
                     let e1_value = e1_result?;
 
@@ -376,6 +400,10 @@ impl TCState for TSeqState {
     fn get_state_name(&self) -> String {
         "Seq".to_string()
     }
+
+    fn get_method_name(&self) -> String {
+        self.method_name.clone()
+    }
 }
 
 impl TSeqState {
@@ -386,6 +414,7 @@ impl TSeqState {
         e1_fn: TCFn,
         e2_fn: TCConsumerFn,
         env_state: (ConcreteTyping, ConcreteTyping),
+        method_name: String,
     ) -> TCReturnResult {
         Ok((
             None,
@@ -394,6 +423,7 @@ impl TSeqState {
                 e2_fn: Some(Box::new(e2_fn)),
                 env_state,
                 e1_result: None,
+                method_name,
             })),
         ))
     }
@@ -436,7 +466,7 @@ impl TCState for TAssignState {
             );
         }
 
-        let result_val = err_if_dead(result)?;
+        let result_val = result?;
 
         if DEBUG_TCSTATE {
             cprintln!(
@@ -456,6 +486,10 @@ impl TCState for TAssignState {
     fn get_state_name(&self) -> String {
         "Assign".to_string()
     }
+
+    fn get_method_name(&self) -> String {
+        self.method_name.clone()
+    }
 }
 
 impl TAssignState {
@@ -466,6 +500,7 @@ impl TAssignState {
         e_fn: TCFn,
         binding_fn: TC2ConsumerFn,
         env_state: (ConcreteTyping, ConcreteTyping),
+        method_name: String,
     ) -> TCReturnResult {
         Ok((
             None,
@@ -473,6 +508,7 @@ impl TAssignState {
                 e_fn: Some(Box::new(e_fn)),
                 binding_fn: Some(Box::new(binding_fn)),
                 env_state,
+                method_name,
             })),
         ))
     }
@@ -523,7 +559,7 @@ impl TCState for TLetState {
             match e1_return {
                 (_, TCReturn::TCResult(result)) => {
                     self.e1_result = Some(result.clone());
-                    let e1_value = err_if_dead(result)?;
+                    let e1_value = result?;
                     if DEBUG_TCSTATE {
                         cprintln!(
                             "<yellow>[called]: binding_fn({}, {})</yellow>",
@@ -551,7 +587,7 @@ impl TCState for TLetState {
                     }
                 }
                 (_, TCReturn::TCState(state)) => {
-                    let e1_result = err_if_dead(state.evaluate());
+                    let e1_result = state.evaluate();
                     self.e1_result = Some(e1_result.clone());
                     let e1_value = e1_result?;
                     if DEBUG_TCSTATE {
@@ -595,7 +631,7 @@ impl TCState for TLetState {
             );
         }
         if let Some(binding_result) = self.binding_result.clone() {
-            let result_val = err_if_dead(result)?;
+            let result_val = result?;
             let binding_result_val = binding_result?;
 
             if DEBUG_TCSTATE {
@@ -607,20 +643,16 @@ impl TCState for TLetState {
                 );
             }
             // It is possible that the type originally bound was reassigned before the gc_fn was called.
-            let current_bound_type =
-                result_val
-                    .0
-                    .clone()
-                    .lookup_type(Place {
-                        variable: binding_result_val.1.binding.unwrap().variable,
-                        path: vec![],
-                    })?;
+            let current_bound_type = result_val.0.clone().lookup_type(Place {
+                variable: binding_result_val.1.binding.unwrap().variable,
+                path: vec![],
+            })?;
             let gc_return_val =
                 (self.gc_fn.take().unwrap())(result_val.0, result_val.1, current_bound_type)?;
             Ok(gc_return_val.1)
         } else {
             self.e1_result = Some(result.clone());
-            let result_val = err_if_dead(result)?;
+            let result_val = result?;
 
             if DEBUG_TCSTATE {
                 cprintln!(
@@ -642,6 +674,10 @@ impl TCState for TLetState {
     fn get_state_name(&self) -> String {
         "Let".to_string()
     }
+
+    fn get_method_name(&self) -> String {
+        self.method_name.clone()
+    }
 }
 
 impl TLetState {
@@ -656,6 +692,7 @@ impl TLetState {
         e2_fn: TCConsumerFn,
         gc_fn: TC3ConsumerFn,
         env_state: (ConcreteTyping, ConcreteTyping),
+        method_name: String,
     ) -> TCReturnResult {
         Ok((
             None,
@@ -667,6 +704,7 @@ impl TLetState {
                 env_state,
                 e1_result: None,
                 binding_result: None,
+                method_name,
             })),
         ))
     }
@@ -786,7 +824,10 @@ impl TCStateMachine {
                 _ => {
                     if let Some(state) = self.states.last() {
                         let env_state = state.get_env_state();
-                        results.push((Ok((env_state.0, get_unit())), state.get_state_name()));
+                        results.push((
+                            Ok((env_state.0, get_unit())),
+                            state.get_method_name(),
+                        ));
                     }
                 }
             }
@@ -830,9 +871,7 @@ impl TCStateMachine {
         }
     }
 
-    pub fn step_into(
-        &mut self,
-    ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
+    pub fn step_into(&mut self) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
         self.si_count += 1;
         if DEBUG_TCSTATE {
             cprintln!("<cyan>STATE_MACHINE step_into #{}</cyan>", self.si_count);
@@ -844,9 +883,7 @@ impl TCStateMachine {
         self.step(return_result)
     }
 
-    pub fn step_over(
-        &mut self,
-    ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
+    pub fn step_over(&mut self) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
         self.so_count += 1;
         if DEBUG_TCSTATE {
             cprintln!("<cyan>STATE_MACHINE step_over #{}</cyan>", self.so_count);

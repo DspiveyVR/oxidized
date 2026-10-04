@@ -2,7 +2,7 @@
 source: tests/typecheck_tests.rs
 description: "\n    letrgn<'x> {\n        let x: u32 = 5;\n        let y: &'x uniq u32 = &'x uniq x;\n        letrgn<'y> {\n            y\n        };\n        letrgn<'y> {\n            let z: u32 = 3;\n            let w: &'y uniq u32 = &'y uniq z;\n            letrgn<'z> { \n                let a: &'x uniq u32 = &'x uniq x;\n                w\n            };\n            let b: &'y uniq u32 = w\n        }  \n    }\n    "
 ---
-Step 1: Let
+Step 1: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -11,7 +11,7 @@ ConcreteTyping {
 	]
  }
 
-Step 2: Expr
+Step 2: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -20,7 +20,7 @@ ConcreteTyping {
 	]
  }
 
-Step 3: Let
+Step 3: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -29,17 +29,7 @@ ConcreteTyping {
 	]
  }
 
-Step 4: Let
-ConcreteTyping { 
-	r: [
-		'x -> {  }
-	]
- 	𝜏: [
-		 x := u32
-	]
- }
-
-Step 5: Expr
+Step 4: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -49,7 +39,7 @@ ConcreteTyping {
 	]
  }
 
-Step 6: Let
+Step 5: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -59,7 +49,17 @@ ConcreteTyping {
 	]
  }
 
-Step 7: Seq
+Step 6: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 7: t_seq
 ConcreteTyping { 
 	r: [
 		'x -> { unique x }
@@ -70,7 +70,7 @@ ConcreteTyping {
 	]
  }
 
-Step 8: Letrgn
+Step 8: t_letrgn
 ConcreteTyping { 
 	r: [
 		'x -> { unique x }
@@ -81,7 +81,7 @@ ConcreteTyping {
 	]
  }
 
-Step 9: Expr
+Step 9: t_move
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -93,7 +93,7 @@ ConcreteTyping {
 	]
  }
 
-Step 10: Seq
+Step 10: t_seq
 ConcreteTyping { 
 	r: [
 		'x -> { unique x }
@@ -104,7 +104,7 @@ ConcreteTyping {
 	]
  }
 
-Step 11: Letrgn
+Step 11: t_letrgn
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -115,7 +115,7 @@ ConcreteTyping {
 	]
  }
 
-Step 12: Let
+Step 12: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -127,7 +127,7 @@ ConcreteTyping {
 	]
  }
 
-Step 13: Expr
+Step 13: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -139,7 +139,7 @@ ConcreteTyping {
 	]
  }
 
-Step 14: Let
+Step 14: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -151,7 +151,7 @@ ConcreteTyping {
 	]
  }
 
-Step 15: Let
+Step 15: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -164,7 +164,7 @@ ConcreteTyping {
 	]
  }
 
-Step 16: Expr
+Step 16: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -177,7 +177,7 @@ ConcreteTyping {
 	]
  }
 
-Step 17: Let
+Step 17: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -190,7 +190,7 @@ ConcreteTyping {
 	]
  }
 
-Step 18: Seq
+Step 18: t_seq
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -204,7 +204,7 @@ ConcreteTyping {
 	]
  }
 
-Step 19: Letrgn
+Step 19: t_letrgn
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -218,7 +218,7 @@ ConcreteTyping {
 	]
  }
 
-Step 20: Let
+Step 20: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -233,7 +233,7 @@ ConcreteTyping {
 	]
  }
 
-Step 21: Expr
+Step 21: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -248,7 +248,7 @@ ConcreteTyping {
 	]
  }
 
-Step 22: Let
+Step 22: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -263,7 +263,7 @@ ConcreteTyping {
 	]
  }
 
-Step 23: Expr
+Step 23: t_move
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -279,7 +279,7 @@ ConcreteTyping {
 	]
  }
 
-Step 24: Seq
+Step 24: t_seq
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -293,7 +293,7 @@ ConcreteTyping {
 	]
  }
 
-Step 25: Let
+Step 25: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -307,5 +307,19 @@ ConcreteTyping {
 	]
  }
 
-Step 26: END
-Type ( w := &'y unique u32)† is dead
+Step 26: t_move
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		( y := &'x unique u32)†,
+		 z := u32,
+		( w := &'y unique u32)†
+	]
+ }
+
+Step 27: END
+Use of moved value with type: ( w := &'y unique u32)†

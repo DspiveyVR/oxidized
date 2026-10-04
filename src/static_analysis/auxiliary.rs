@@ -191,13 +191,12 @@ impl Type {
 }
 
 pub fn err_if_dead(
-    res: Result<(ConcreteTyping, Type), OxidizedError>,
-) -> Result<(ConcreteTyping, Type), OxidizedError> {
-    let ret_type = res.clone()?.1;
-    if ret_type.is_dead == Ternary::Yes {
-        Err(OxidizedError::UseOfMovedValue(ret_type))
+    typ: Type
+) -> Result<Type, OxidizedError> {
+    if typ.is_dead == Ternary::Yes {
+        Err(OxidizedError::UseOfMovedValue(typ))
     } else {
-        res
+        Ok(typ)
     }
 }
 

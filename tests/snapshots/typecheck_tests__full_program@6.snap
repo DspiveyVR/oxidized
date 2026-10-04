@@ -2,7 +2,7 @@
 source: tests/typecheck_tests.rs
 description: "\n    letrgn<'x> {\n        let mut x: u32 = 5;\n        letrgn<'z> {\n            let y: &'z shrd u32 = &'x shrd x; ()\n        }\n    }\n    "
 ---
-Step 1: Let
+Step 1: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -11,7 +11,7 @@ ConcreteTyping {
 	]
  }
 
-Step 2: Expr
+Step 2: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -20,7 +20,7 @@ ConcreteTyping {
 	]
  }
 
-Step 3: Let
+Step 3: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -29,7 +29,7 @@ ConcreteTyping {
 	]
  }
 
-Step 4: Letrgn
+Step 4: t_letrgn
 ConcreteTyping { 
 	r: [
 		'x -> {  }
@@ -39,7 +39,7 @@ ConcreteTyping {
 	]
  }
 
-Step 5: Let
+Step 5: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -50,7 +50,7 @@ ConcreteTyping {
 	]
  }
 
-Step 6: Expr
+Step 6: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -61,7 +61,7 @@ ConcreteTyping {
 	]
  }
 
-Step 7: Let
+Step 7: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -72,7 +72,7 @@ ConcreteTyping {
 	]
  }
 
-Step 8: Expr
+Step 8: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> {  },

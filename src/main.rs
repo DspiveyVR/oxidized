@@ -10,10 +10,10 @@ use oxidized::{
 };
 
 fn main() {
-    let a = 5;
-    let b = &mut a;
-    let c = &mut b;
-    **c;
+    // let a = 5;
+    // let b = &mut a;
+    // let c = &mut b;
+    // **c;
 }
 
 fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {

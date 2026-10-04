@@ -2,7 +2,7 @@
 source: tests/typecheck_tests.rs
 description: "\n    letrgn<'x, 'y> {\n        let x: u32 = 5;\n        let mut y: &'x uniq u32 = &'x uniq x;\n        letrgn<'z> {\n            let z: u32 = 5;\n            y = &'y uniq z; ()\n        }; ()\n    }\n    "
 ---
-Step 1: Let
+Step 1: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -12,7 +12,7 @@ ConcreteTyping {
 	]
  }
 
-Step 2: Expr
+Step 2: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -22,7 +22,7 @@ ConcreteTyping {
 	]
  }
 
-Step 3: Let
+Step 3: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -32,18 +32,7 @@ ConcreteTyping {
 	]
  }
 
-Step 4: Let
-ConcreteTyping { 
-	r: [
-		'x -> {  },
-		'y -> {  }
-	]
- 	𝜏: [
-		 x := u32
-	]
- }
-
-Step 5: Expr
+Step 4: t_let
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -54,7 +43,7 @@ ConcreteTyping {
 	]
  }
 
-Step 6: Let
+Step 5: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> {  },
@@ -65,7 +54,18 @@ ConcreteTyping {
 	]
  }
 
-Step 7: Seq
+Step 6: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 7: t_seq
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -77,7 +77,7 @@ ConcreteTyping {
 	]
  }
 
-Step 8: Letrgn
+Step 8: t_letrgn
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -89,7 +89,7 @@ ConcreteTyping {
 	]
  }
 
-Step 9: Let
+Step 9: t_let
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -102,7 +102,7 @@ ConcreteTyping {
 	]
  }
 
-Step 10: Expr
+Step 10: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -115,7 +115,7 @@ ConcreteTyping {
 	]
  }
 
-Step 11: Let
+Step 11: t_let
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -128,7 +128,7 @@ ConcreteTyping {
 	]
  }
 
-Step 12: Seq
+Step 12: t_seq
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -142,7 +142,7 @@ ConcreteTyping {
 	]
  }
 
-Step 13: Assign
+Step 13: t_assign
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -156,7 +156,7 @@ ConcreteTyping {
 	]
  }
 
-Step 14: Expr
+Step 14: t_borrow
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -170,7 +170,7 @@ ConcreteTyping {
 	]
  }
 
-Step 15: Seq
+Step 15: t_seq
 ConcreteTyping { 
 	r: [
 		'x -> { unique x },
@@ -184,7 +184,7 @@ ConcreteTyping {
 	]
  }
 
-Step 16: Expr
+Step 16: t_constant
 ConcreteTyping { 
 	r: [
 		'x -> {  },

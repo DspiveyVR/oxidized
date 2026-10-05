@@ -354,14 +354,15 @@ impl ConcreteTyping {
         }
     }
 
+    // I screwed this all up.
     pub fn compute_type(
         &self,
         place_expression: PlaceExpression,
         ownership_qualifier: OwnershipQualifier,
     ) -> Result<TypeComputation, OxidizedError> {
         match place_expression {
-            PlaceExpression::Deref(place_expression) => {
-                let tc = self.compute_type(*place_expression.clone(), ownership_qualifier)?;
+            PlaceExpression::Deref(ref inner_pe) => {
+                let tc = self.compute_type(*inner_pe.clone(), ownership_qualifier)?;
                 if let TypeVariant::Reference(ref_type) = tc.get_type_value().clone().variant {
                     let target = ref_type.target_type.clone();
 
@@ -372,9 +373,8 @@ impl ConcreteTyping {
                     }
 
                     let pointer = PlaceExpressionPointer {
-                        place_expression: *place_expression,
-                        // FIXME: This as well as the other ones need to be determined based on loans and not on the type's binding. Will need a method for this.
-                        points_to: target.binding.clone().unwrap().into(),
+                        place_expression,
+                        points_to: self.get_region(ref_type.region_name)?.get_referenced_place()
                     };
                     Ok(tc.append(pointer, target))
                 } else {
@@ -809,5 +809,16 @@ where
         }
 
         VecSet([&diff[..], &other.0[..]].concat())
+    }
+}
+
+impl ConcreteRegion {
+    pub fn get_referenced_place(&self) -> Place {
+        let loan = self.loans.0.last().unwrap();
+        if loan.is_reborrow {
+            self.loans.0.iter().nth_back(1).unwrap().place.clone()
+        } else {
+            loan.place.clone()
+        }
     }
 }

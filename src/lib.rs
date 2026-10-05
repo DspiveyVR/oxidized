@@ -14,14 +14,14 @@ macro_rules! set_snapshot_suffix {
     };
 }
 
-fn test() {
-    // struct A {
-    //     a: i32,
-    // }
+// fn test() {
+//     struct A {
+//         a: i32,
+//     }
 
-    // let mut a = A { a: 4};
-    // let mut b = &a;
-    // let c = &mut b;
-    // let d = &mut (**c).a;
-    // d;
-}
+//     let mut a = A { a: 4};
+//     let mut b = &mut a;
+//     let c =  *b;
+//     // let d = &mut (**c).a;
+//     // d;
+// }

@@ -497,7 +497,34 @@ pub fn reborrow() -> &'static str {
     letrgn<'x, 'y> {
         let x: u32 = 5;
         let y: &'x uniq u32 = &'x uniq x;
-        let z: &'y uniq u32 = *y
+        let z: &'y uniq u32 = &'y uniq *y;
+        z
+    }
+    "
+}
+
+#[fixture]
+pub fn reborrow_err() -> &'static str {
+    "
+    letrgn<'x, 'y> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: &'y uniq u32 = &'y uniq *y;
+        y
+    }
+    "
+}
+
+// FIXME: Borrow chains are not being properly constructed. no derefs in there.
+#[fixture]
+pub fn reborrow_move_ref() -> &'static str {
+    "
+    letrgn<'x, 'y, 'z> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: &'y uniq &'x uniq u32 = &'y uniq y;
+        let w: &'z uniq &'x uniq u32 = &'z uniq *z;
+        *w
     }
     "
 }

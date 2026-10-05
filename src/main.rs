@@ -1,4 +1,3 @@
-
 use std::println;
 
 use oxidized::{
@@ -10,10 +9,26 @@ use oxidized::{
 };
 
 fn main() {
-    // let a = 5;
-    // let b = &mut a;
-    // let c = &mut b;
-    // **c;
+    let program = "
+    letrgn<'x, 'y> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: &'y uniq u32 = &'y uniq *y;
+        z
+    }
+
+    ";
+    let ast = oxidized::parser::ExprParser::new().parse(program).unwrap();
+    println!("{}", ast);
+
+    let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
+    let mut state_machine = TCStateMachine::new(state);
+
+    let result = state_machine.evaluate();
+    match result {
+        Ok(val) => println!("{}", val.0),
+        Err(err) => println!("{}", err),
+    }
 }
 
 fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {

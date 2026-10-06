@@ -529,6 +529,7 @@ impl ConcreteTyping {
         reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let tc = self.compute_type(place_expression, ownership_qualifier)?;
+        println!("TYPE COMPUTATION {}", tc);
         let mut final_loans = VecSet::new();
         for (typ, pe_ptr) in tc {
             match pe_ptr.place_expression.clone() {

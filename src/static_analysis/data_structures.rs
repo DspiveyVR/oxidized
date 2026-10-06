@@ -215,13 +215,10 @@ impl Iterator for TypeComputationIterator {
 }
 
 impl TypeComputation {
-    pub fn new(typ: Type, place: Place) -> Self {
+    pub fn new() -> Self {
         TypeComputation {
-            types: vec![typ],
-            places: vec![PlaceExpressionPointer {
-                place_expression: place.clone().into(),
-                points_to: place,
-            }],
+            types: vec![],
+            places: vec![],
         }
     }
 
@@ -245,12 +242,16 @@ impl TypeComputation {
         &self.places.first().unwrap().points_to
     }
 
-    pub fn append(&self, pointer: PlaceExpressionPointer, typ: Type) -> Self {
-        let mut new_tc = self.clone();
-        new_tc.places.push(pointer);
-        new_tc.types.push(typ);
+    pub fn push(&mut self, pointer: PlaceExpressionPointer, typ: Type) {
+        self.places.push(pointer);
+        self.types.push(typ);
+    }
 
-        new_tc
+    pub fn concat(&self, other: &TypeComputation) -> TypeComputation {
+        TypeComputation {
+            types: [&self.types[..], &other.types[..]].concat(),
+            places: [&self.places[..], &other.places[..]].concat(),
+        }
     }
 
     pub fn get_depth(&self) -> usize {
@@ -354,39 +355,54 @@ impl ConcreteTyping {
         }
     }
 
-    // I screwed this all up.
     pub fn compute_type(
         &self,
         place_expression: PlaceExpression,
         ownership_qualifier: OwnershipQualifier,
     ) -> Result<TypeComputation, OxidizedError> {
+        let mut tc = TypeComputation::new();
         match place_expression {
             PlaceExpression::Deref(ref inner_pe) => {
-                let tc = self.compute_type(*inner_pe.clone(), ownership_qualifier)?;
-                if let TypeVariant::Reference(ref_type) = tc.get_type_value().clone().variant {
-                    let target = ref_type.target_type.clone();
+                if let PlaceExpression::Place(place) = *(inner_pe.clone()) {
+                    let typ = self.lookup_type(place.clone())?;
+                    tc.push(
+                        PlaceExpressionPointer {
+                            place_expression,
+                            points_to: place.clone(),
+                        },
+                        typ.clone(),
+                    );
 
-                    let target = err_if_dead(*target)?;
+                    if let TypeVariant::Reference(ref_type) = typ.variant {
+                        let target = err_if_dead(*ref_type.target_type.clone())?;
 
-                    if ownership_qualifier > ref_type.ownership_qualifier {
-                        return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
+                        if ownership_qualifier > ref_type.ownership_qualifier {
+                            return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
+                        }
+
+                        let pointer = PlaceExpressionPointer {
+                            place_expression: place.clone().into(),
+                            points_to: place,
+                        };
+                        tc.push(pointer, target);
+                    } else {
+                        panic!("Unexpected match")
                     }
-
-                    let pointer = PlaceExpressionPointer {
-                        place_expression,
-                        points_to: self.get_region(ref_type.region_name)?.get_referenced_place()
-                    };
-                    Ok(tc.append(pointer, target))
                 } else {
-                    panic!("Unexpected match")
+                    panic!("Unexpected match");
                 }
             }
-            PlaceExpression::Place(place) => Ok(TypeComputation::new(
-                self.lookup_type(place.clone())?.clone(),
-                place,
-            )),
+            PlaceExpression::Place(place) => tc.push(
+                PlaceExpressionPointer {
+                    place_expression: place.clone().into(),
+                    points_to: place.clone(),
+                },
+                self.lookup_type(place)?,
+            ),
             PlaceExpression::PathAccess(..) => todo!(),
         }
+
+        Ok(tc)
     }
 
     pub fn add_region(&self, new_region: ConcreteRegion) -> Self {

@@ -78,6 +78,7 @@ pub enum RegionLevel {
     // AbstractRegion
 }
 
+// TODO: Maybe regions should also be sets. same with type envs
 #[derive(Serialize, Debug, Clone)]
 pub struct ConcreteRegion {
     pub name: String,
@@ -174,6 +175,7 @@ impl TypeEnv for ConcreteTyping {
 }
 
 #[derive(Clone)]
+// FIXME: Probably need an enum variant so you dont copy a place twice cause that's weird.jK:w
 pub struct PlaceExpressionPointer {
     pub place_expression: PlaceExpression,
     pub points_to: Place,
@@ -328,6 +330,7 @@ impl ConcreteTyping {
         }
     }
 
+    // FIXME: fix all deez other ones
     pub fn flat_compute_type(
         &self,
         place_expression: PlaceExpression,
@@ -380,16 +383,17 @@ impl ConcreteTyping {
                             return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
                         }
 
+                        let referenced_place = self.get_region(ref_type.region_name)?.get_referenced_place();
                         let pointer = PlaceExpressionPointer {
-                            place_expression: place.clone().into(),
-                            points_to: place,
+                            place_expression: referenced_place.clone().into(),
+                            points_to: referenced_place,
                         };
                         tc.push(pointer, target);
                     } else {
                         panic!("Unexpected match")
                     }
                 } else {
-                    panic!("Unexpected match");
+                    todo!()
                 }
             }
             PlaceExpression::Place(place) => tc.push(

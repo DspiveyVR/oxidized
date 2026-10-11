@@ -21,6 +21,7 @@ type TCPopVarsFn = dyn FnOnce(TCResult) -> TCReturnResult;
 type TC2ConsumerFn = dyn FnOnce(ConcreteTyping, Type) -> TCReturnResult;
 type TC3ConsumerFn = dyn FnOnce(ConcreteTyping, Type, Type) -> TCReturnResult;
 
+// TODO: Tbh maybe just rename it Debugger
 pub struct TCStateMachine {
     states: Vec<Box<dyn TCState>>,
     si_count: u32,

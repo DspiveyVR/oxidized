@@ -20,6 +20,7 @@ use super::tc_state_machine::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
+use crate::debugging::display_impls::_vec_display_elements;
 use crate::static_analysis::auxiliary::err_if_dead;
 use crate::static_analysis::auxiliary::get_unit;
 
@@ -232,16 +233,11 @@ impl Expression {
                         is_sized: Ternary::Yes,
                         is_dead: Ternary::No,
                     };
-                    
+
                     region = region.set_loans(loans);
 
-                    Ok((
-                        None,
-                        TCReturn::TCResult(Ok((
-                            stack_typing.set_region(ref_annotation.0.to_string(), region),
-                            ref_type,
-                        ))),
-                    ))
+                    let test = stack_typing.set_region(ref_annotation.0.to_string(), region);
+                    Ok((None, TCReturn::TCResult(Ok((test, ref_type)))))
                 } else {
                     panic!("Unexpected error");
                 }
@@ -523,9 +519,10 @@ impl ConcreteTyping {
         ownership_qualifier: OwnershipQualifier,
         reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
-        let tc = self.compute_type(place_expression, ownership_qualifier)?;
+        let tc = self.compute_type(place_expression.clone(), ownership_qualifier)?;
         let mut final_loans = VecSet::new();
-        for (typ, pe_ptr) in tc {
+        // FIXME: Checking every entry in the TC is problematic so IDK how I'll handle recursive dereferencing.
+        if let Some((typ, pe_ptr)) = tc.into_iter().last() {
             match pe_ptr.place_expression.clone() {
                 PlaceExpression::Deref(_) => {
                     final_loans = self.o_deref(

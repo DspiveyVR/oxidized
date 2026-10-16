@@ -1,3 +1,5 @@
+// TODO: Implement some basic vec methods for vecset so you never access the vec directly. Create an iterator for it.
+
 use crate::{
     ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation},
     static_analysis::auxiliary::err_if_dead,
@@ -183,13 +185,13 @@ pub struct PlaceExpressionPointer {
 
 #[derive(Clone)]
 pub struct TypeComputation {
-    types: Vec<Type>,
-    places: Vec<PlaceExpressionPointer>,
+    pub types: Vec<Type>,
+    pub places: Vec<PlaceExpressionPointer>,
 }
 
 pub struct TypeComputationIterator {
     tc: TypeComputation,
-    head: usize,
+    head: isize,
 }
 
 impl IntoIterator for TypeComputation {
@@ -198,7 +200,10 @@ impl IntoIterator for TypeComputation {
     type IntoIter = TypeComputationIterator;
 
     fn into_iter(self) -> Self::IntoIter {
-        TypeComputationIterator { tc: self.clone(), head: self.places.len() }
+        TypeComputationIterator {
+            tc: self.clone(),
+            head: self.places.len() as isize - 1,
+        }
     }
 }
 
@@ -206,7 +211,12 @@ impl Iterator for TypeComputationIterator {
     type Item = (Type, PlaceExpressionPointer);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match (self.tc.types.get(self.head), self.tc.places.get(self.head)) {
+        if self.head == -1 {
+            return None;
+        }
+
+        let head = self.head as usize;
+        match (self.tc.types.get(head), self.tc.places.get(head)) {
             (Some(typ), Some(place)) => {
                 self.head -= 1;
                 Some((typ.clone(), place.clone()))
@@ -314,8 +324,7 @@ impl ConcreteTyping {
                     todo!()
                 }
             }
-            PlaceExpression::Place(place) => 
-                self.lookup_type(place),
+            PlaceExpression::Place(place) => self.lookup_type(place),
             PlaceExpression::PathAccess(..) => todo!(),
         }
     }
@@ -344,8 +353,7 @@ impl ConcreteTyping {
                     todo!()
                 }
             }
-            PlaceExpression::Place(place) => 
-                self.lookup_type(place),
+            PlaceExpression::Place(place) => self.lookup_type(place),
             PlaceExpression::PathAccess(..) => todo!(),
         }
     }

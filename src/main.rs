@@ -9,13 +9,17 @@ use oxidized::{
 };
 
 fn main() {
+    // FIXME: Probably issue with reborrow exclusion. Time to write a debugger :)
     let program = "
-    letrgn<'x, 'y> {
+
+    letrgn<'x, 'y, 'z> {
         let x: u32 = 5;
-        let y: &'x shrd u32 = &'x shrd x;
-        let z: &'y shrd u32 = &'y shrd *y;
-        z
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: &'y uniq &'x uniq u32 = &'y uniq y;
+        let w: &'z uniq &'x uniq u32 = &'z uniq *z;
+        *w
     }
+
 
     ";
     let ast = oxidized::parser::ExprParser::new().parse(program).unwrap();

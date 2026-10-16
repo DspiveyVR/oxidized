@@ -515,7 +515,6 @@ pub fn reborrow_err() -> &'static str {
     "
 }
 
-// FIXME: Borrow chains are not being properly constructed. no derefs in there.
 #[fixture]
 pub fn reborrow_move_ref() -> &'static str {
     "

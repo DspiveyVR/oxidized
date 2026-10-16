@@ -178,7 +178,7 @@ where
     format!(
         "[\n{}\n]",
         vec.iter()
-            .fold("".to_string(), |a, e| format!("\t{},\n {}", a, e))[7..]
+            .fold("".to_string(), |a, e| format!("\t{},\n {}", a, e))
             .to_string()
     )
 }

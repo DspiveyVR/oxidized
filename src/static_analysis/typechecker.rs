@@ -10,14 +10,9 @@ e1 only matters to e2 insofar as it affects the output typing gamma1, but the e1
 
 helper fns
 
-kill type (in env)
-
 FIXME:
 there's a little more to the regions() metafunction than just accessing the regions.  this will be important for getting the regions
 in the cont typing.  probably can forget about it for now.
-
-TODO: see if theres a way to get rid of the unexpected match conditions so that it is logically impossible according to the type system.
-TODO: better new, get, and set methods for various types. prob could use some helper methods in general
 
 */
 use super::data_structures::*;
@@ -529,7 +524,6 @@ impl ConcreteTyping {
         reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let tc = self.compute_type(place_expression, ownership_qualifier)?;
-        println!("TYPE COMPUTATION {}", tc);
         let mut final_loans = VecSet::new();
         for (typ, pe_ptr) in tc {
             match pe_ptr.place_expression.clone() {

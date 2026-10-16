@@ -12,8 +12,8 @@ fn main() {
     let program = "
     letrgn<'x, 'y> {
         let x: u32 = 5;
-        let y: &'x uniq u32 = &'x uniq x;
-        let z: &'y uniq u32 = &'y uniq *y;
+        let y: &'x shrd u32 = &'x shrd x;
+        let z: &'y shrd u32 = &'y shrd *y;
         z
     }
 

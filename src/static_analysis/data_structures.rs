@@ -198,7 +198,7 @@ impl IntoIterator for TypeComputation {
     type IntoIter = TypeComputationIterator;
 
     fn into_iter(self) -> Self::IntoIter {
-        TypeComputationIterator { tc: self, head: 0 }
+        TypeComputationIterator { tc: self.clone(), head: self.places.len() }
     }
 }
 
@@ -208,7 +208,7 @@ impl Iterator for TypeComputationIterator {
     fn next(&mut self) -> Option<Self::Item> {
         match (self.tc.types.get(self.head), self.tc.places.get(self.head)) {
             (Some(typ), Some(place)) => {
-                self.head += 1;
+                self.head -= 1;
                 Some((typ.clone(), place.clone()))
             }
             _ => None,
@@ -223,18 +223,6 @@ impl TypeComputation {
             places: vec![],
         }
     }
-
-    // pub fn get_types(&self) -> &Vec<Type> {
-    //     &self.types
-    // }
-
-    // pub fn get_type(&self, i: usize) -> Option<&Type> {
-    //     self.types.get(i)
-    // }
-
-    // pub fn get_place(&self, i: usize) -> Option<&Place> {
-    //     self.places.get(i)
-    // }
 
     pub fn get_type_value(&self) -> &Type {
         self.types.first().unwrap()
@@ -312,48 +300,52 @@ impl ConcreteTyping {
         place_expression: PlaceExpression,
     ) -> Result<Type, OxidizedError> {
         match place_expression {
-            PlaceExpression::Deref(place_expression) => {
-                let typ = self.flat_compute_type_no_ord(*place_expression.clone())?;
-                if let TypeVariant::Reference(ref_type) = typ.variant {
-                    let target = ref_type.target_type.clone();
+            PlaceExpression::Deref(ref inner_pe) => {
+                if let PlaceExpression::Place(place) = *(inner_pe.clone()) {
+                    let typ = self.lookup_type(place.clone())?;
+                    if let TypeVariant::Reference(ref_type) = typ.variant {
+                        let target = err_if_dead(*ref_type.target_type.clone())?;
 
-                    // I thikn these err calls might be redundant anyway
-                    // let target = err_if_dead(*target)?;
-
-                    Ok(*target)
+                        Ok(target)
+                    } else {
+                        panic!("Unexpected match")
+                    }
                 } else {
-                    panic!("Unexpected match")
+                    todo!()
                 }
             }
-            PlaceExpression::Place(place) => Ok(self.lookup_type(place.clone())?.clone()),
+            PlaceExpression::Place(place) => 
+                self.lookup_type(place),
             PlaceExpression::PathAccess(..) => todo!(),
         }
     }
 
-    // FIXME: fix all deez other ones
     pub fn flat_compute_type(
         &self,
         place_expression: PlaceExpression,
         ownership_qualifier: OwnershipQualifier,
     ) -> Result<Type, OxidizedError> {
         match place_expression {
-            PlaceExpression::Deref(place_expression) => {
-                let typ = self.flat_compute_type(*place_expression.clone(), ownership_qualifier)?;
-                if let TypeVariant::Reference(ref_type) = typ.variant {
-                    let target = ref_type.target_type.clone();
+            PlaceExpression::Deref(ref inner_pe) => {
+                if let PlaceExpression::Place(place) = *(inner_pe.clone()) {
+                    let typ = self.lookup_type(place.clone())?;
+                    if let TypeVariant::Reference(ref_type) = typ.variant {
+                        let target = err_if_dead(*ref_type.target_type.clone())?;
 
-                    let target = err_if_dead(*target)?;
+                        if ownership_qualifier > ref_type.ownership_qualifier {
+                            return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
+                        }
 
-                    if ownership_qualifier > ref_type.ownership_qualifier {
-                        return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
+                        Ok(target)
+                    } else {
+                        panic!("Unexpected match")
                     }
-
-                    Ok(target)
                 } else {
-                    panic!("Unexpected match")
+                    todo!()
                 }
             }
-            PlaceExpression::Place(place) => Ok(self.lookup_type(place.clone())?.clone()),
+            PlaceExpression::Place(place) => 
+                self.lookup_type(place),
             PlaceExpression::PathAccess(..) => todo!(),
         }
     }
@@ -383,7 +375,9 @@ impl ConcreteTyping {
                             return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
                         }
 
-                        let referenced_place = self.get_region(ref_type.region_name)?.get_referenced_place();
+                        let referenced_place = self
+                            .get_region(ref_type.region_name)?
+                            .get_referenced_place();
                         let pointer = PlaceExpressionPointer {
                             place_expression: referenced_place.clone().into(),
                             points_to: referenced_place,

@@ -202,7 +202,7 @@ impl IntoIterator for TypeComputation {
     fn into_iter(self) -> Self::IntoIter {
         TypeComputationIterator {
             tc: self.clone(),
-            head: self.places.len() as isize - 1,
+            head: 0,
         }
     }
 }
@@ -218,7 +218,7 @@ impl Iterator for TypeComputationIterator {
         let head = self.head as usize;
         match (self.tc.types.get(head), self.tc.places.get(head)) {
             (Some(typ), Some(place)) => {
-                self.head -= 1;
+                self.head += 1;
                 Some((typ.clone(), place.clone()))
             }
             _ => None,

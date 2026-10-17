@@ -9,7 +9,6 @@ use oxidized::{
 };
 
 fn main() {
-    // FIXME: Probably issue with reborrow exclusion. Time to write a debugger :)
     let program = "
 
     letrgn<'x, 'y, 'z> {

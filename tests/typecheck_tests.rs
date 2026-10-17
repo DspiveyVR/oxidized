@@ -57,7 +57,8 @@ fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
 #[case(oxide_programs::basic_deref(), 36)]
 #[case(oxide_programs::reborrow(), 37)]
 #[case(oxide_programs::reborrow_err(), 38)]
-#[case(oxide_programs::reborrow_move_ref(), 39)]
+#[case(oxide_programs::reborrow_move_ref_err(), 39)]
+// #[case(oxide_programs::deref2x(), 40)]
 fn full_program(#[case] program: &'static str, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 

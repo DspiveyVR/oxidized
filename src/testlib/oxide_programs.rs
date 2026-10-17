@@ -516,7 +516,7 @@ pub fn reborrow_err() -> &'static str {
 }
 
 #[fixture]
-pub fn reborrow_move_ref() -> &'static str {
+pub fn reborrow_move_ref_err() -> &'static str {
     "
     letrgn<'x, 'y, 'z> {
         let x: u32 = 5;
@@ -524,6 +524,18 @@ pub fn reborrow_move_ref() -> &'static str {
         let z: &'y uniq &'x uniq u32 = &'y uniq y;
         let w: &'z uniq &'x uniq u32 = &'z uniq *z;
         *w
+    }
+    "
+}
+
+#[fixture]
+pub fn deref2x() -> &'static str {
+    "
+    letrgn<'x, 'y, 'z> {
+        let x: u32 = 5;
+        let y: &'x uniq u32 = &'x uniq x;
+        let z: &'y uniq &'x uniq u32 = &'y uniq y;
+        let w: u32 = **z
     }
     "
 }

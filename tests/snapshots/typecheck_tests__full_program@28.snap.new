@@ -1,0 +1,586 @@
+---
+source: tests/typecheck_tests.rs
+assertion_line: 72
+description: "\n    letrgn<'x> {\n        let x: u32 = 5;\n        letrgn<'y> {\n            letrgn<'z> {\n                let a: &'z uniq u32 = &'y uniq x;\n                let b: &'z uniq u32 = a\n            };\n            let c: &'y uniq u32 = &'x uniq x\n        };\n        let a: &'x uniq u32 = &'x uniq x;\n        letrgn<'y> {\n            let b: &'y shrd &'x uniq u32 = &'y shrd a;\n            letrgn<'z> {\n                let c: &'z shrd &'x uniq u32 = &'z shrd a;\n                letrgn<'w, 'a> {\n                    let d: &'w shrd &'x uniq u32 = c;\n                    let e: &'a uniq &'w shrd &'x uniq u32 = &'a uniq d\n                }\n            }\n        };\n        let b: &'x uniq u32 = a \n    }\n    "
+---
+Step 1: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 2: t_constant
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 3: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+	]
+ }
+
+Step 4: t_seq
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 5: t_letrgn
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 6: t_seq
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 7: t_letrgn
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 8: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 9: t_borrow
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 10: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 11: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'z unique u32
+	]
+ }
+
+Step 12: t_move
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'z unique u32
+	]
+ }
+
+Step 13: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'z unique u32
+	]
+ }
+
+Step 14: t_constant
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		( a := &'z unique u32)†,
+		 b := &'z unique u32
+	]
+ }
+
+Step 15: t_seq
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 16: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 17: t_borrow
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 18: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 19: t_constant
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 c := &'y unique u32
+	]
+ }
+
+Step 20: t_seq
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 21: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 22: t_borrow
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 23: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32
+	]
+ }
+
+Step 24: t_seq
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32
+	]
+ }
+
+Step 25: t_letrgn
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32
+	]
+ }
+
+Step 26: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32
+	]
+ }
+
+Step 27: t_borrow
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32
+	]
+ }
+
+Step 28: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32
+	]
+ }
+
+Step 29: t_letrgn
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32
+	]
+ }
+
+Step 30: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32
+	]
+ }
+
+Step 31: t_borrow
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32
+	]
+ }
+
+Step 32: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32
+	]
+ }
+
+Step 33: t_letrgn
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32,
+		 c := &'z shared &'x unique u32
+	]
+ }
+
+Step 34: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  },
+		'w -> {  },
+		'a -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32,
+		 c := &'z shared &'x unique u32
+	]
+ }
+
+Step 35: t_copy
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  },
+		'w -> {  },
+		'a -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32,
+		 c := &'z shared &'x unique u32
+	]
+ }
+
+Step 36: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  },
+		'w -> {  },
+		'a -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32,
+		 c := &'z shared &'x unique u32
+	]
+ }
+
+Step 37: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  },
+		'w -> {  },
+		'a -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32,
+		 c := &'z shared &'x unique u32,
+		 d := &'w shared &'x unique u32
+	]
+ }
+
+Step 38: t_borrow
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  },
+		'w -> {  },
+		'a -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32,
+		 c := &'z shared &'x unique u32,
+		 d := &'w shared &'x unique u32
+	]
+ }
+
+Step 39: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  },
+		'w -> {  },
+		'a -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32,
+		 c := &'z shared &'x unique u32,
+		 d := &'w shared &'x unique u32
+	]
+ }
+
+Step 40: t_constant
+ConcreteTyping { 
+	r: [
+		'x -> {  },
+		'y -> {  },
+		'z -> {  },
+		'w -> {  },
+		'a -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32,
+		 b := &'y shared &'x unique u32,
+		 c := &'z shared &'x unique u32,
+		 d := &'w shared &'x unique u32,
+		 e := &'a unique &'w shared &'x unique u32
+	]
+ }
+
+Step 41: t_seq
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32
+	]
+ }
+
+Step 42: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32
+	]
+ }
+
+Step 43: t_move
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32
+	]
+ }
+
+Step 44: t_let
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		 a := &'x unique u32
+	]
+ }
+
+Step 45: t_constant
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		 x := u32,
+		( a := &'x unique u32)†,
+		 b := &'x unique u32
+	]
+ }
+
+Step 46: PREV
+ConcreteTyping { 
+	r: [
+		'x -> {  }
+	]
+ 	𝜏: [
+		( x := u32)†,
+		( a := &'x unique u32)†,
+		( b := &'x unique u32)†
+	]
+ }
+
+Step 47: END
+ConcreteTyping { 
+	r: [
+	]
+ 	𝜏: [
+	]
+ }

@@ -520,26 +520,52 @@ impl ConcreteTyping {
         reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let tc = self.compute_type(place_expression.clone(), ownership_qualifier)?;
+        let mut tc_iter = tc.into_iter();
+        let mut next_excl = reborrow_exclusion_list.clone();
         let mut final_loans = VecSet::new();
-        // FIXME: Checking every entry in the TC is problematic so IDK how I'll handle recursive dereferencing.
-        if let Some((typ, pe_ptr)) = tc.into_iter().last() {
+        // let final_loans = if let Some((typ, pe_ptr)) = tc_iter.next() {
+        //     match pe_ptr.place_expression.clone() {
+        //         PlaceExpression::Deref(_) => {
+        //             let res = self.o_deref(
+        //                 continuation_typing,
+        //                 ownership_qualifier,
+        //                 &next_excl,
+        //                 typ,
+        //                 pe_ptr.points_to,
+        //             )?;
+        //             next_excl = res.1;
+        //             res.0
+        //         }
+        //         PlaceExpression::Place(place) => {
+        //             self.o_safe_place(continuation_typing, place, ownership_qualifier, &next_excl)?
+        //         }
+        //         PlaceExpression::PathAccess(place_expression, items) => todo!(),
+        //     }
+        // } else {
+        //     VecSet::new()
+        // };
+
+        // FIXME: Safe_place should not be called in deref chains (except on the loans) and I think the places and derefs should not be seperate
+        // entries in tc, but each one should just be a pe_pointer and not have a duplicate. So it's either just one place or its a place expression
+        // where the place is stricly with reference to the deref.
+        for (typ, pe_ptr) in tc_iter {
             match pe_ptr.place_expression.clone() {
                 PlaceExpression::Deref(_) => {
-                    final_loans = self.o_deref(
+                    (final_loans, next_excl) = self.o_deref(
                         continuation_typing,
                         ownership_qualifier,
-                        reborrow_exclusion_list,
+                        &next_excl,
                         typ,
                         pe_ptr.points_to,
-                    )?
+                    )?;
                 }
                 PlaceExpression::Place(place) => {
-                    final_loans = self.o_safe_place(
+                    self.o_safe_place(
                         continuation_typing,
                         place,
                         ownership_qualifier,
-                        reborrow_exclusion_list,
-                    )?
+                        &next_excl,
+                    )?;
                 }
                 PlaceExpression::PathAccess(place_expression, items) => todo!(),
             }
@@ -555,7 +581,7 @@ impl ConcreteTyping {
         reborrow_exclusion_list: &VecSet<Place>,
         typ: Type,
         place: Place,
-    ) -> Result<VecSet<Loan>, OxidizedError> {
+    ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
         if let TypeVariant::Reference(ref_type) = typ.variant {
             if ownership_qualifier > ref_type.ownership_qualifier {
                 return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
@@ -626,7 +652,7 @@ impl ConcreteTyping {
                 }
             }
 
-            Ok(new_loans)
+            Ok((new_loans, new_excl_list))
         } else {
             panic!("Unexpected match");
         }

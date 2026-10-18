@@ -16,11 +16,10 @@ in the cont typing.  probably can forget about it for now.
 
 */
 
-
 /*
 NEXT TODO
 
-probably should do the stuff i wrote down for vecset to eliminate direct access and then do the debugger stuff. so rename
+do the debugger stuff. so rename
 state machine to Debugger and move it to debugging module, then implement ownership checking states to add to the debugger.
 
 */
@@ -213,7 +212,7 @@ impl Expression {
                 let continuation_typing = ct_clone;
                 if let Expression::Ref(ref_annotation, e) = self {
                     let mut region = stack_typing.get_region(ref_annotation.0.to_string())?;
-                    if !region.loans.0.is_empty() {
+                    if !region.loans.is_empty() {
                         return Err(OxidizedError::NonemptyRegion(
                             ref_annotation.0.clone(),
                             region.loans.clone(),
@@ -272,7 +271,7 @@ impl Expression {
                 let stack_typing = st_clone;
                 if let Expression::Letrgn(region_names, inner_exp) = self {
                     stack_typing.check_conflicting_region_names(&region_names)?;
-                    let scope = if let Some(region) = stack_typing.regions.0.last() {
+                    let scope = if let Some(region) = stack_typing.regions.last() {
                         region.scope + 1
                     } else {
                         0
@@ -291,13 +290,13 @@ impl Expression {
                 let return_type = result.1;
 
                 let new_stack_typing = ConcreteTyping {
-                    regions: VecSet((env.regions.0[..stack_typing.regions.0.len()]).to_vec()),
-                    types: VecSet((env.types.0[..stack_typing.types.0.len()]).to_vec()),
+                    regions: VecSet::new((env.regions[..stack_typing.regions.len()]).to_vec()),
+                    types: VecSet::new((env.types[..stack_typing.types.len()]).to_vec()),
                 };
 
                 // Similar to one part of the WF-StackTyping rule. The accuracy of this compared to the paper is questionable.
-                for region in &new_stack_typing.regions.0 {
-                    for loan in &region.loans.0 {
+                for region in new_stack_typing.regions.iter() {
+                    for loan in region.loans.iter() {
                         match env.flat_compute_type_no_ord(loan.clone().into()) {
                             Ok(typ) => {
                                 if typ.clone().is_dead != Ternary::No {
@@ -348,7 +347,7 @@ impl Expression {
 
                     if let TypeVariant::Reference(assignment_ref_type) = &place_type.variant {
                         let r = &assignment_ref_type.region_name;
-                        for (place_prime, typ) in gamma1_prime.explode().0.iter() {
+                        for (place_prime, typ) in gamma1_prime.explode().iter() {
                             if let TypeVariant::Reference(ref_type) = &typ.variant {
                                 let r_prime = &ref_type.region_name;
                                 if &place != place_prime && r == r_prime {
@@ -378,7 +377,7 @@ impl Expression {
                         &ct_clone2,
                         place,
                         OwnershipQualifier::Uniq,
-                        &VecSet::new(),
+                        &VecSet::new_empty(),
                     ) {
                         if place_type.is_dead != Ternary::Yes {
                             return Err(err);
@@ -520,7 +519,7 @@ impl ConcreteTyping {
             continuation_typing,
             place_expression,
             ownership_qualifier,
-            &VecSet::new(),
+            &VecSet::new_empty(),
         )
     }
 
@@ -533,7 +532,7 @@ impl ConcreteTyping {
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let tc = self.compute_type(place_expression.clone(), ownership_qualifier)?;
         let mut next_excl = reborrow_exclusion_list.clone();
-        let mut final_loans = VecSet::new();
+        let mut final_loans = VecSet::new_empty();
 
         match tc {
             TypeComputation::DerefChain(entries) => {
@@ -577,9 +576,8 @@ impl ConcreteTyping {
             }
             let region = self.get_region(ref_type.region_name)?;
             let r_loans = region.loans;
-            let excl = VecSet(
+            let excl = VecSet::new(
                 r_loans
-                    .0
                     .iter()
                     .filter_map(|l| {
                         if l.is_reborrow {
@@ -592,10 +590,10 @@ impl ConcreteTyping {
             );
             let new_excl_list = reborrow_exclusion_list
                 .union(excl)
-                .union(VecSet(vec![place.clone()]));
+                .union(VecSet::new(vec![place.clone()]));
 
-            let mut new_loans = VecSet::new();
-            for loan in r_loans.0 {
+            let mut new_loans = VecSet::new_empty();
+            for loan in r_loans {
                 new_loans = new_loans.union(self._ownership_check(
                     continuation_typing,
                     loan.into(),
@@ -603,7 +601,7 @@ impl ConcreteTyping {
                     &new_excl_list,
                 )?);
             }
-            new_loans.0.push(Loan {
+            new_loans.push(Loan {
                 ownership_qualifier,
                 place: place.clone(),
                 is_reborrow: true,
@@ -612,8 +610,8 @@ impl ConcreteTyping {
             let converted_place = place.clone().into();
             // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means. Maybe not relevant until I have tuples.
             let check_res = (|| {
-                for region in self.regions.union(continuation_typing.clone().regions).0 {
-                    for loan in region.clone().loans.0 {
+                for region in self.regions.union(continuation_typing.clone().regions) {
+                    for loan in region.clone().loans {
                         if (ownership_qualifier == OwnershipQualifier::Uniq
                             || loan.ownership_qualifier == OwnershipQualifier::Uniq)
                             && Into::<PlaceExpression>::into(loan.place.clone())
@@ -632,9 +630,9 @@ impl ConcreteTyping {
             })();
 
             if let Err(err) = check_res {
-                for (place, typ) in self.explode().0 {
+                for (place, typ) in self.explode() {
                     if let TypeVariant::Reference(_) = typ.variant {
-                        if !reborrow_exclusion_list.0.contains(&place) {
+                        if !reborrow_exclusion_list.contains(&place) {
                             return Err(err);
                         }
                     }
@@ -658,8 +656,8 @@ impl ConcreteTyping {
         let place_clone = place.clone();
         // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means. Maybe not relevant until I have tuples.
         let check_res = (|| {
-            for region in self.regions.union(continuation_typing.clone().regions).0 {
-                for loan in region.clone().loans.0 {
+            for region in self.regions.union(continuation_typing.clone().regions) {
+                for loan in region.clone().loans {
                     if (ownership_qualifier == OwnershipQualifier::Uniq
                         || loan.ownership_qualifier == OwnershipQualifier::Uniq)
                         && Into::<PlaceExpression>::into(loan.place.clone())
@@ -678,16 +676,16 @@ impl ConcreteTyping {
         })();
 
         if let Err(err) = check_res {
-            for (place, typ) in self.explode().0 {
+            for (place, typ) in self.explode() {
                 if let TypeVariant::Reference(_) = typ.variant {
-                    if !reborrow_exclusion_list.0.contains(&place) {
+                    if !reborrow_exclusion_list.contains(&place) {
                         return Err(err);
                     }
                 }
             }
         }
 
-        Ok(VecSet(vec![Loan {
+        Ok(VecSet::new(vec![Loan {
             ownership_qualifier,
             place,
             is_reborrow: false,
@@ -746,14 +744,12 @@ impl ConcreteTyping {
         }
         if !(self
             .regions
-            .0
             .iter()
             .find(|r| r.name == region1.name)
             .unwrap()
             .scope
             <= self
                 .regions
-                .0
                 .iter()
                 .find(|r| r.name == region2.name)
                 .unwrap()
@@ -782,14 +778,12 @@ impl ConcreteTyping {
         }
         if !(self
             .regions
-            .0
             .iter()
             .find(|r| r.name == region1.name)
             .unwrap()
             .scope
             <= self
                 .regions
-                .0
                 .iter()
                 .find(|r| r.name == region2.name)
                 .unwrap()

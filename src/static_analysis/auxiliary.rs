@@ -3,13 +3,12 @@ use super::data_structures::*;
 impl ConcreteTyping {
     pub fn kill_rules(&self, place: Place) -> ConcreteTyping {
         let mut new_type_env = self.clone();
-        for region in new_type_env.regions.0.iter_mut() {
+        for region in new_type_env.regions.iter_mut() {
             *region = ConcreteRegion {
                 name: region.name.clone(),
-                loans: VecSet(
+                loans: VecSet::new(
                     region
                         .loans
-                        .0
                         .iter()
                         .filter(|l| !(l.place == place && l.is_reborrow))
                         .cloned()
@@ -25,12 +24,12 @@ impl ConcreteTyping {
     // FIXME: make this look less stupid
     pub fn rnrb(&self, region: ConcreteRegion) -> bool {
         let exploded = self.explode();
-        exploded.0.iter().all(|pair| {
+        exploded.iter().all(|pair| {
             if let TypeVariant::Reference(reference) = pair.1.variant.clone() {
                 if reference.region_name == region.name {
-                    !self.regions.0.iter().any(|r| {
+                    !self.regions.iter().any(|r| {
                         if r.name != region.name {
-                            r.loans.0.iter().any(|loan| {
+                            r.loans.iter().any(|loan| {
                                 if loan.is_reborrow {
                                     loan.place == pair.0
                                 } else {
@@ -53,8 +52,8 @@ impl ConcreteTyping {
     // TODO: Actually implement NLL
     pub fn gc_loans(&self, continuation_typing: Self) -> Self {
         let mut stack_clone = self.clone();
-        let env_union = stack_clone.types.union(continuation_typing.types).0;
-        for r in stack_clone.regions.0.iter_mut() {
+        let env_union = stack_clone.types.union(continuation_typing.types);
+        for r in stack_clone.regions.iter_mut() {
             if !env_union.iter().any(|t| {
                 t.is_dead != Ternary::Yes
                     && if let TypeVariant::Reference(ref_type) = &t.variant {
@@ -63,7 +62,7 @@ impl ConcreteTyping {
                         false
                     }
             }) {
-                r.loans.0.clear();
+                r.loans.clear();
             }
         }
 
@@ -76,7 +75,6 @@ impl ConcreteTyping {
     ) -> Result<(), OxidizedError> {
         if let Some(conflicting_region) = self
             .regions
-            .0
             .iter()
             .find(|r| region_names.contains(&r.name))
         {

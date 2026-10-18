@@ -41,7 +41,6 @@ impl Display for ConcreteTyping {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let regions_str = self
             .regions
-            .0
             .iter()
             .fold("".to_string(), |a, e| format!("{},\n\t\t{}", a, e))
             .get(1..)
@@ -49,7 +48,6 @@ impl Display for ConcreteTyping {
             .to_string();
         let types_str = self
             .types
-            .0
             .iter()
             .fold("".to_string(), |a, e| format!("{},\n\t\t{}", a, e))
             .get(1..)
@@ -133,8 +131,7 @@ impl Display for VecSet<Loan> {
         write!(
             f,
             "{{ {} }}",
-            self.0
-                .iter()
+            self.iter()
                 .map(|l| format!("{}", l))
                 .collect::<Vec<String>>()
                 .join(", ")

@@ -1,11 +1,9 @@
-// TODO: Implement some basic vec methods for vecset so you never access the vec directly. Create an iterator for it.
-
 use crate::{
     ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation},
     static_analysis::{auxiliary::err_if_dead, data_structures::TypeComputation::DerefChain},
 };
 use serde::Serialize;
-use std::{fmt::Debug, panic, todo, vec};
+use std::{fmt::Debug, ops::Index, panic, slice::SliceIndex, todo, vec};
 // use color_print;
 use thiserror::Error;
 
@@ -102,7 +100,7 @@ pub enum RegionRewriteMode {
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub struct VecSet<T>(pub Vec<T>);
+pub struct VecSet<T>(Vec<T>);
 
 #[derive(Debug, Clone, Error)]
 pub enum OxidizedError {
@@ -158,7 +156,6 @@ pub trait Set<T>
 where
     T: Eq + Clone,
 {
-    fn new() -> Self;
     fn union(&self, other: Self) -> Self;
 }
 
@@ -433,8 +430,8 @@ impl ConcreteTyping {
 
     pub fn new_with_regions(region_names: &Vec<String>, scope: u32) -> Self {
         ConcreteTyping {
-            types: VecSet::new(),
-            regions: VecSet(
+            types: VecSet::new_empty(),
+            regions: VecSet::new(
                 region_names
                     .iter()
                     .map(|r| ConcreteRegion::new(r.to_string(), scope))
@@ -445,13 +442,13 @@ impl ConcreteTyping {
 
     pub fn new() -> Self {
         ConcreteTyping {
-            types: VecSet::new(),
-            regions: VecSet::new(),
+            types: VecSet::new_empty(),
+            regions: VecSet::new_empty(),
         }
     }
 
     pub fn explode(&self) -> VecSet<(Place, Type)> {
-        let binding_pairs = VecSet(
+        let binding_pairs = VecSet::new(
             self.types
                 .0
                 .iter()
@@ -494,7 +491,7 @@ impl ConcreteTyping {
 
         let all_pairs = binding_pairs.union(place_pairs);
 
-        let mut result = VecSet::new();
+        let mut result = VecSet::new_empty();
 
         for pair in all_pairs.0 {
             result = result.union(Self::explode_pair(pair.0, pair.1));
@@ -509,7 +506,7 @@ impl ConcreteTyping {
                 VecSet(vec![(place.clone(), associated_type)])
             }
             TypeVariant::Tuple(types) => {
-                let mut exploded = VecSet::new();
+                let mut exploded = VecSet::new_empty();
                 for (i, type_info) in types.iter().enumerate() {
                     let new_place = Place {
                         variable: (&place).clone().variable,
@@ -768,7 +765,7 @@ impl ConcreteRegion {
     pub fn new(name: String, scope: u32) -> Self {
         ConcreteRegion {
             name: name,
-            loans: VecSet::new(),
+            loans: VecSet::new_empty(),
             scope,
         }
     }
@@ -791,9 +788,6 @@ impl<T> Set<T> for VecSet<T>
 where
     T: Eq + Clone + Debug,
 {
-    fn new() -> Self {
-        VecSet(Vec::new())
-    }
     fn union(&self, other: Self) -> Self {
         let mut diff = Vec::new();
 
@@ -804,6 +798,76 @@ where
         }
 
         VecSet([&diff[..], &other.0[..]].concat())
+    }
+}
+
+impl<T> VecSet<T> {
+    pub fn new(vec: Vec<T>) -> Self {
+        VecSet(vec)
+    }
+
+    pub fn new_empty() -> Self {
+        VecSet(vec![])
+    }
+
+    pub fn push(&mut self, item: T) {
+        self.0.push(item);
+    }
+
+    pub fn get(&self, i: usize) -> Option<&T> {
+        self.0.get(i)
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, T> {
+        self.0.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, T> {
+        self.0.iter_mut()
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn last(&self) -> Option<&T> {
+        self.0.last()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn contains(&self, item: &T) -> bool
+    where
+        T: PartialEq,
+    {
+        self.0.contains(item)
+    }
+}
+
+impl<T, Idx> Index<Idx> for VecSet<T>
+where
+    Idx: SliceIndex<[T]>,
+{
+    type Output = Idx::Output;
+
+    fn index(&self, index: Idx) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<T> IntoIterator for VecSet<T> {
+    type Item = T;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 

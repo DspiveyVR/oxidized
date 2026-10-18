@@ -25,7 +25,6 @@ pub enum Expression {
     Variable(String),
     Let {
         name: String,
-        is_mut: bool,
         type_annotation: TypeAnnotation,
         e: Box<Expression>,
     },
@@ -73,14 +72,12 @@ impl Display for Expression {
             Expression::Sequence(e1, e2) => return write!(f, "\n    {};\n    {}", e1, e2),
             Expression::Let {
                 name,
-                is_mut,
                 type_annotation,
                 e,
             } => {
                 return write!(
                     f,
-                    "\n    let {} {}: {:?} = {}",
-                    if *is_mut { "mut" } else { "" },
+                    "\n    let {}: {:?} = {}",
                     name,
                     type_annotation,
                     e,

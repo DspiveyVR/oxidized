@@ -1,6 +1,6 @@
 ---
 source: tests/typecheck_tests.rs
-description: "\n    letrgn<'x,  'y> {\n        let x: u32 = 5;\n        let y: &'x uniq u32 = &'x uniq x;\n        letrgn<'z> {\n            y; ()\n        };\n        letrgn<'w> {\n            let z: u32 = 3; ()\n        }  \n    }\n    "
+description: "Oxide:\n\n        letrgn<'x,  'y> {\n            let x: u32 = 5;\n            let y: &'x uniq u32 = &'x uniq x;\n            letrgn<'z> {\n                y; ()\n            };\n            letrgn<'w> {\n                let z: u32 = 3; ()\n            }  \n        }\n        \nRust:\nfn main() {\n            let mut x: u32 = 5;\n            let mut y: &mut u32 = &mut x;\n            {\n                y;\n                ()\n            };\n            {\n                let mut z: u32 = 3;\n                ()\n            }\n        }"
 ---
 Step 1: t_let
 ConcreteTyping { 
@@ -39,7 +39,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -50,7 +50,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -61,7 +61,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -72,8 +72,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -84,8 +84,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -97,8 +97,8 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -110,8 +110,8 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -123,8 +123,8 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -136,8 +136,8 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†
+		x := u32,
+		(y := &'x unique u32)†
 	]
  }
 
@@ -148,8 +148,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -160,8 +160,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†
+		x := u32,
+		(y := &'x unique u32)†
 	]
  }
 
@@ -173,8 +173,8 @@ ConcreteTyping {
 		'w -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†
+		x := u32,
+		(y := &'x unique u32)†
 	]
  }
 
@@ -186,8 +186,8 @@ ConcreteTyping {
 		'w -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†
+		x := u32,
+		(y := &'x unique u32)†
 	]
  }
 
@@ -199,8 +199,8 @@ ConcreteTyping {
 		'w -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†
+		x := u32,
+		(y := &'x unique u32)†
 	]
  }
 
@@ -212,9 +212,9 @@ ConcreteTyping {
 		'w -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†,
-		 z := u32
+		x := u32,
+		(y := &'x unique u32)†,
+		z := u32
 	]
  }
 
@@ -225,8 +225,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		( x := u32)†,
-		( y := &'x unique u32)†
+		(x := u32)†,
+		(y := &'x unique u32)†
 	]
  }
 
@@ -237,3 +237,6 @@ ConcreteTyping {
  	𝜏: [
 	]
  }
+
+
+Rust compiles

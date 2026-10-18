@@ -1,6 +1,6 @@
 ---
 source: tests/typecheck_tests.rs
-description: "\n    letrgn<'x> {\n        let x: u32 = 5;\n        letrgn<'y> {\n            let z: &'y uniq u32 = &'y uniq x\n        };\n        let y: &'x uniq u32 = &'x uniq x\n    }\n    "
+description: "Oxide:\n\n        letrgn<'x> {\n            let x: u32 = 5;\n            letrgn<'y> {\n                let z: &'y uniq u32 = &'y uniq x\n            };\n            let y: &'x uniq u32 = &'x uniq x\n        }\n        \nRust:\nfn main() {\n            let mut x: u32 = 5;\n            {\n                let mut z: &mut u32 = &mut x;\n            };\n            let mut y: &mut u32 = &mut x;\n        }"
 ---
 Step 1: t_let
 ConcreteTyping { 
@@ -35,7 +35,7 @@ ConcreteTyping {
 		'x -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -45,7 +45,7 @@ ConcreteTyping {
 		'x -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -56,7 +56,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -67,7 +67,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -78,7 +78,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -89,8 +89,8 @@ ConcreteTyping {
 		'y -> { unique x }
 	]
  	𝜏: [
-		 x := u32,
-		 z := &'y unique u32
+		x := u32,
+		z := &'y unique u32
 	]
  }
 
@@ -100,7 +100,7 @@ ConcreteTyping {
 		'x -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -110,7 +110,7 @@ ConcreteTyping {
 		'x -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -120,7 +120,7 @@ ConcreteTyping {
 		'x -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -130,7 +130,7 @@ ConcreteTyping {
 		'x -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -140,8 +140,8 @@ ConcreteTyping {
 		'x -> { unique x }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -151,8 +151,8 @@ ConcreteTyping {
 		'x -> { unique x }
 	]
  	𝜏: [
-		( x := u32)†,
-		( y := &'x unique u32)†
+		(x := u32)†,
+		(y := &'x unique u32)†
 	]
  }
 
@@ -163,3 +163,6 @@ ConcreteTyping {
  	𝜏: [
 	]
  }
+
+
+Rust compiles

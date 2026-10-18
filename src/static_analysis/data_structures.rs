@@ -2,104 +2,97 @@ use crate::{
     ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation},
     static_analysis::{auxiliary::err_if_dead, data_structures::TypeComputation::DerefChain},
 };
-use serde::Serialize;
 use std::{fmt::Debug, ops::Index, panic, slice::SliceIndex, todo, vec};
 // use color_print;
 use thiserror::Error;
 
 // Types
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct ConcreteTyping {
     pub regions: VecSet<ConcreteRegion>,
     pub types: VecSet<Type>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Type {
-    pub binding: Option<Binding>,
+    pub variable: Option<String>,
     pub variant: TypeVariant,
     pub is_sized: Ternary,
     pub is_dead: Ternary,
 }
 
-#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PlaceExpression {
     Deref(Box<PlaceExpression>),
     PathAccess(Box<PlaceExpression>, Vec<u32>),
     Place(Place),
 }
 
-#[derive(Serialize, Debug, Clone)]
-pub struct Binding {
-    pub variable: String,
-    pub is_mut: bool,
-}
-
-#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Place {
     pub variable: String,
     pub path: Vec<u32>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub enum TypeVariant {
     Base(BaseType),
     Reference(ReferenceType),
     Tuple(Vec<Box<Type>>),
 }
 
-#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BaseType {
     Bool,
     U32,
     Unit,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct ReferenceType {
     pub region_name: String,
     pub ownership_qualifier: OwnershipQualifier,
     pub target_type: Box<Type>,
 }
 
-#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Ternary {
     Yes,
     No,
     // Maybe,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Region(pub RegionLevel);
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub enum RegionLevel {
     ConcreteRegion(ConcreteRegion),
     // AbstractRegion
 }
 
 // TODO: Maybe regions should also be sets. same with type envs
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct ConcreteRegion {
     pub name: String,
     pub loans: VecSet<Loan>,
     pub scope: u32,
 }
 
-#[derive(Serialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Loan {
     pub ownership_qualifier: OwnershipQualifier,
     pub place: Place,
     pub is_reborrow: bool,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub enum RegionRewriteMode {
     Plus,
     Equals,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct VecSet<T>(Vec<T>);
 
 #[derive(Debug, Clone, Error)]
@@ -133,8 +126,6 @@ pub enum OxidizedError {
         place_expression2: PlaceExpression,
         ownership_qualifier2: String,
     },
-    #[error("Cannot mutate immutable variable {0}")]
-    NoMutAnnotation(String),
     #[error("{0} is not a valid place expression")]
     InvalidPlaceExpression(Expression),
     #[error("{0} is not a valid place")]
@@ -216,7 +207,7 @@ impl ConcreteTyping {
             .types
             .0
             .iter()
-            .find(|t| t.binding.clone().unwrap().variable == place.variable)
+            .find(|t| t.variable.clone().unwrap() == place.variable)
         {
             // I thikn these err calls might be redundant anyway
             // let typ = err_if_dead(typ.clone())?;
@@ -401,7 +392,7 @@ impl ConcreteTyping {
             .types
             .0
             .iter_mut()
-            .find(|t| t == &&t1 && t.binding == t1.binding)
+            .find(|t| t == &&t1 && t.variable == t1.variable)
         {
             *t = t2;
             new_env
@@ -455,7 +446,7 @@ impl ConcreteTyping {
                 .map(|t| {
                     (
                         Place {
-                            variable: t.binding.clone().unwrap().variable,
+                            variable: t.variable.clone().unwrap(),
                             path: vec![],
                         },
                         t.clone(),
@@ -563,7 +554,7 @@ impl Eq for Type {}
 impl From<TypeAnnotation> for Type {
     fn from(value: TypeAnnotation) -> Self {
         Self {
-            binding: None,
+            variable: None,
             variant: match value {
                 TypeAnnotation::Base(base_type_annotation) => {
                     TypeVariant::Base(match base_type_annotation {
@@ -646,10 +637,10 @@ impl Type {
     }
 }
 
-impl From<Binding> for Place {
-    fn from(value: Binding) -> Self {
+impl From<String> for Place {
+    fn from(value: String) -> Self {
         Place {
-            variable: value.variable,
+            variable: value,
             path: vec![],
         }
     }
@@ -776,13 +767,6 @@ impl ConcreteRegion {
         new_region
     }
 }
-
-impl PartialEq for Binding {
-    fn eq(&self, other: &Self) -> bool {
-        self.variable == other.variable
-    }
-}
-impl Eq for Binding {}
 
 impl<T> Set<T> for VecSet<T>
 where

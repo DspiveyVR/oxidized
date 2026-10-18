@@ -76,11 +76,10 @@ impl Display for ReferenceType {
 
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let binding_str = if let Some(binding) = &self.binding {
+        let variable_str = if let Some(variable) = &self.variable {
             format!(
-                "{} {} := ",
-                binding.is_mut.then(|| "mut").unwrap_or(""),
-                binding.variable
+                "{} := ",
+                variable
             )
         } else {
             "".to_string()
@@ -112,9 +111,9 @@ impl Display for Type {
             f,
             "{}",
             if self.is_dead == Ternary::Yes {
-                format!("({}{})†", binding_str, variant_str)
+                format!("({}{})†", variable_str, variant_str)
             } else {
-                format!("{}{}", binding_str, variant_str)
+                format!("{}{}", variable_str, variant_str)
             }
         )
     }

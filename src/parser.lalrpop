@@ -16,10 +16,9 @@ pub Expr: Box<Expression> = {
     "*" <e: Expr> => Box::new(Expression::Deref(e)),
     <r: ReferenceAnnotation> <e: Expr> => Box::new(Expression::Ref(r, e)),
     #[precedence(level="2")] #[assoc(side="left")]
-    "let" <m: "mut"?> <i: Identifier> ":" <typ: TypeAnnotation> "=" <e: Expr> =>
+    "let" <i: Identifier> ":" <typ: TypeAnnotation> "=" <e: Expr> =>
         Box::new(Expression::Let {
             name: i, 
-            is_mut: match m { None => false, Some(_) => true }, 
             type_annotation: typ,
             e
         }),

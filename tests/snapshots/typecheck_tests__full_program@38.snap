@@ -1,6 +1,6 @@
 ---
 source: tests/typecheck_tests.rs
-description: "\n    letrgn<'x, 'y> {\n        let x: u32 = 5;\n        let y: &'x uniq u32 = &'x uniq x;\n        let z: &'y uniq u32 = &'y uniq *y;\n        y\n    }\n    "
+description: "Oxide:\n\n        letrgn<'x, 'y> {\n            let x: u32 = 5;\n            let y: &'x uniq u32 = &'x uniq x;\n            let z: &'y uniq u32 = &'y uniq *y;\n            y\n        }\n        \nRust:\nfn main() {\n            let mut x: u32 = 5;\n            let mut y: &mut u32 = &mut x;\n            let mut z: &mut u32 = &mut *y;\n            y;\n        }"
 ---
 Step 1: t_let
 ConcreteTyping { 
@@ -39,7 +39,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -50,7 +50,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -61,7 +61,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -72,8 +72,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -84,8 +84,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -96,10 +96,13 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
 Step 10: END
 Cannot use y uniquely while a unique reference to y exists
+
+
+Rust compiles

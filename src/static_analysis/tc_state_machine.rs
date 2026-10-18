@@ -647,7 +647,7 @@ impl TCState for TLetState {
             }
             // It is possible that the type originally bound was reassigned before the gc_fn was called.
             let current_bound_type = result_val.0.clone().lookup_type(Place {
-                variable: binding_result_val.1.binding.unwrap().variable,
+                variable: binding_result_val.1.variable.unwrap(),
                 path: vec![],
             })?;
             let gc_return_val =

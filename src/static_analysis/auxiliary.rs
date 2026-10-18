@@ -200,7 +200,7 @@ pub fn err_if_dead(
 
 pub fn get_unit() -> Type {
     Type {
-        binding: None,
+        variable: None,
         variant: TypeVariant::Base(BaseType::Unit),
         is_sized: Ternary::Yes,
         is_dead: Ternary::No,

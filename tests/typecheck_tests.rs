@@ -1,9 +1,10 @@
 use oxidized::parser::ExprParser;
 use oxidized::set_snapshot_suffix;
+use oxidized::testlib::oxide_programs::TestProgram;
+use oxidized::testlib::oxide_programs::check_rust_code;
 use rstest::*;
 
 use oxidized::static_analysis::data_structures::ConcreteTyping;
-use oxidized::static_analysis::data_structures::OxidizedError;
 use oxidized::static_analysis::tc_state_machine::*;
 use oxidized::testlib::oxide_programs;
 
@@ -59,21 +60,21 @@ fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
 #[case(oxide_programs::reborrow_err(), 38)]
 #[case(oxide_programs::reborrow_move_ref_err(), 39)]
 // #[case(oxide_programs::deref2x(), 40)]
-fn full_program(#[case] program: &'static str, #[case] n: u32) {
+fn full_program(#[case] program: TestProgram, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 
-    let ast = ExprParser::new().parse(program).unwrap();
+    let ast = ExprParser::new().parse(program.oxide).unwrap();
     dbg!(&ast);
 
     insta::with_settings!({
-        description => program,
+        description => format!("({})\n\nOxide:\n{}\nRust:\n{}", program.program_name, program.oxide, program.rust),
         omit_expression => true
     }, {
         insta::assert_snapshot!({
             let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
             let mut state_machine = TCStateMachine::new(state);
             let results = state_machine.deep_evaluate();
-            results
+            let results = results
                 .iter()
                 .enumerate()
                 .map(|(i, r)| {
@@ -88,139 +89,12 @@ fn full_program(#[case] program: &'static str, #[case] n: u32) {
                     )
                 })
                 .collect::<Vec<String>>()
-                .join("")
-        })
-    });
-}
+                .join("");
 
-#[rstest]
-#[case(oxide_programs::ref_rr_scopes(), 0)]
-fn into_over_x2(#[case] program: &'static str, #[case] n: u32) {
-    set_snapshot_suffix!("{}", n);
-
-    let ast = ExprParser::new().parse(program).unwrap();
-    dbg!(&ast);
-
-    insta::with_settings!({
-        description => program,
-        omit_expression => true
-    }, {
-        insta::assert_snapshot!({
-            let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
-            let mut state_machine = TCStateMachine::new(state);
-            let maybe_error = (|| -> Result<(), OxidizedError> {
-                state_machine.step_into()?;
-                state_machine.step_over()?;
-                state_machine.step_into()?;
-                state_machine.step_over()?;
-                Ok(())
-            })();
-
-            match maybe_error {
-                Ok(_) => format!("{}", state_machine.get_env_state().0),
-                Err(err) => format!("{}", err),
-            }
-        })
-    });
-}
-
-// #[rstest]
-// #[case(oxide_programs::move_to_place2(), 0)]
-// fn into_over_x2_x2(#[case] program: &'static str, #[case] n: u32) {
-//     set_snapshot_suffix!("{}", n);
-
-//     let ast = oxidized::ExprParser::new().parse(program).unwrap();
-//     dbg!(&ast);
-
-//     insta::with_settings!({
-//         description => program,
-//         omit_expression => true
-//     }, {
-//         insta::assert_snapshot!({
-//             let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
-//             let mut state_machine = TCStateMachine::new(state);
-//             let maybe_error = (|| -> Result<(), OxidizedError> {
-//                 state_machine.step_into()?;
-//                 state_machine.step_over()?;
-//                 state_machine.step_over()?;
-//                 state_machine.step_into()?;
-//                 state_machine.step_over()?;
-//                 Ok(())
-//             })();
-
-//             match maybe_error {
-//                 Ok(_) => format!("{}", state_machine.get_env_state().0),
-//                 Err(err) => format!("{}", err),
-//             }
-//         })
-//     });
-// }
-
-#[rstest]
-#[case(oxide_programs::move_ref(), 0)]
-#[case(oxide_programs::move_to_place(), 1)]
-#[case(oxide_programs::copy_ref(), 2)]
-#[case(oxide_programs::copy_to_place(), 3)]
-fn three_line_move_or_copy(#[case] program: &'static str, #[case] n: u32) {
-    set_snapshot_suffix!("{}", n);
-
-    let ast = ExprParser::new().parse(program).unwrap();
-    dbg!(&ast);
-
-    insta::with_settings!({
-        description => program,
-        omit_expression => true
-    }, {
-        insta::assert_snapshot!({
-            let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
-            let mut state_machine = TCStateMachine::new(state);
-            let maybe_error = (|| -> Result<(), OxidizedError> {
-                state_machine.step_into()?;
-                state_machine.step_over()?;
-                state_machine.step_over()?;
-                state_machine.step_over()?;
-                Ok(())
-            })();
-
-            match maybe_error {
-                Ok(_) => format!("{}", state_machine.get_env_state().0),
-                Err(err) => format!("{}", err),
-            }
-        })
-    });
-}
-
-#[rstest]
-#[case(oxide_programs::move_ref_err(), 0)]
-#[case(oxide_programs::move_to_place_err(), 1)]
-#[case(oxide_programs::copy_ref_usage(), 2)]
-#[case(oxide_programs::copy_to_place_usage(), 3)]
-fn four_line_move_or_copy(#[case] program: &'static str, #[case] n: u32) {
-    set_snapshot_suffix!("{}", n);
-
-    let ast = ExprParser::new().parse(program).unwrap();
-    dbg!(&ast);
-
-    insta::with_settings!({
-        description => program,
-        omit_expression => true
-    }, {
-        insta::assert_snapshot!({
-            let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
-            let mut state_machine = TCStateMachine::new(state);
-            let maybe_error = (|| -> Result<(), OxidizedError> {
-                state_machine.step_into()?;
-                state_machine.step_over()?;
-                state_machine.step_over()?;
-                state_machine.step_over()?;
-                state_machine.step_over()?;
-                Ok(())
-            })();
-
-            match maybe_error {
-                Ok(_) => format!("{}", state_machine.get_env_state().0),
-                Err(err) => format!("{}", err),
-            }
+            format!("{results}\n{}",  match check_rust_code(program.rust) {
+                Ok(_) => "Rust compiles".to_string(),
+                Err(err) => format!("Rust does not compile:\n{err}"),
+            })
         })
     });
 }

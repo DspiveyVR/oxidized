@@ -1,7 +1,5 @@
 use oxidized::{
-    ast::OwnershipQualifier,
-    parser::ExprParser,
-    set_snapshot_suffix,
+    ast::OwnershipQualifier, parser::ExprParser, set_snapshot_suffix,
     static_analysis::data_structures::*,
 };
 use rstest::*;
@@ -14,7 +12,7 @@ pub fn new_concrete() -> ConcreteTyping {
 
 pub fn get_u32() -> Box<Type> {
     Box::new(Type {
-        binding: None,
+        variable: None,
         variant: TypeVariant::Base(BaseType::U32),
         is_sized: Ternary::Yes,
         is_dead: Ternary::No,
@@ -27,7 +25,7 @@ pub fn get_ref_to(
     region: String,
 ) -> Box<Type> {
     Box::new(Type {
-        binding: None,
+        variable: None,
         variant: TypeVariant::Reference(ReferenceType {
             region_name: region,
             ownership_qualifier: ownership_qualifier,
@@ -41,14 +39,11 @@ pub fn get_ref_to(
 #[fixture]
 pub fn tup1() -> Type {
     Type {
-        binding: Some(Binding {
-            variable: "var".to_string(),
-            is_mut: false,
-        }),
+        variable: Some("var".to_string()),
         variant: TypeVariant::Tuple(vec![
             get_u32(),
             Box::new(Type {
-                binding: None,
+                variable: None,
                 variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
                 is_sized: Ternary::Yes,
                 is_dead: Ternary::No,
@@ -62,15 +57,12 @@ pub fn tup1() -> Type {
 #[fixture]
 pub fn tup2() -> Type {
     Type {
-        binding: Some(Binding {
-            variable: "var2".to_string(),
-            is_mut: false,
-        }),
+        variable: Some("var2".to_string()),
         variant: TypeVariant::Tuple(vec![
             get_u32(),
             get_ref_to(
                 Box::new(Type {
-                    binding: None,
+                    variable: None,
                     variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
                     is_sized: Ternary::Yes,
                     is_dead: Ternary::No,
@@ -87,15 +79,12 @@ pub fn tup2() -> Type {
 #[fixture]
 pub fn tup3() -> Type {
     Type {
-        binding: Some(Binding {
-            variable: "var2".to_string(),
-            is_mut: false,
-        }),
+        variable: Some("var2".to_string()),
         variant: TypeVariant::Tuple(vec![
             get_u32(),
             get_ref_to(
                 Box::new(Type {
-                    binding: None,
+                    variable: None,
                     variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
                     is_sized: Ternary::Yes,
                     is_dead: Ternary::No,
@@ -112,18 +101,12 @@ pub fn tup3() -> Type {
 #[fixture]
 pub fn tup2_inner_binding() -> Type {
     Type {
-        binding: Some(Binding {
-            variable: "var2".to_string(),
-            is_mut: false,
-        }),
+        variable: Some("var2".to_string()),
         variant: TypeVariant::Tuple(vec![
             get_u32(),
             get_ref_to(
                 Box::new(Type {
-                    binding: Some(Binding {
-                        variable: "var2".to_string(),
-                        is_mut: false,
-                    }),
+                    variable: Some("var2".to_string()),
                     variant: TypeVariant::Tuple(vec![get_u32(), get_u32()]),
                     is_sized: Ternary::Yes,
                     is_dead: Ternary::No,

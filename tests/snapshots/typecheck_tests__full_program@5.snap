@@ -1,6 +1,6 @@
 ---
 source: tests/typecheck_tests.rs
-description: "\n    letrgn<'x, 'y> {\n        let mut x: u32 = 5;\n        let y: &'x shrd u32 = &'y shrd x; ()\n    }\n    "
+description: "Oxide:\n\n        letrgn<'x, 'y> {\n            let x: u32 = 5;\n            let y: &'x shrd u32 = &'y shrd x; ()\n        }\n        \nRust:\nfn main() {\n            let mut x: u32 = 5;\n            let mut y: &u32 = &x;\n            ()\n        }"
 ---
 Step 1: t_let
 ConcreteTyping { 
@@ -39,7 +39,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		mut x := u32
+		x := u32
 	]
  }
 
@@ -50,7 +50,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		mut x := u32
+		x := u32
 	]
  }
 
@@ -61,7 +61,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		mut x := u32
+		x := u32
 	]
  }
 
@@ -72,8 +72,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		mut x := u32,
-		 y := &'x shared u32
+		x := u32,
+		y := &'x shared u32
 	]
  }
 
@@ -84,8 +84,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		(mut x := u32)†,
-		( y := &'x shared u32)†
+		(x := u32)†,
+		(y := &'x shared u32)†
 	]
  }
 
@@ -96,3 +96,6 @@ ConcreteTyping {
  	𝜏: [
 	]
  }
+
+
+Rust compiles

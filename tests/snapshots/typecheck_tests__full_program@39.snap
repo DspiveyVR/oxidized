@@ -1,6 +1,6 @@
 ---
 source: tests/typecheck_tests.rs
-description: "\n    letrgn<'x, 'y, 'z> {\n        let x: u32 = 5;\n        let y: &'x uniq u32 = &'x uniq x;\n        let z: &'y uniq &'x uniq u32 = &'y uniq y;\n        let w: &'z uniq &'x uniq u32 = &'z uniq *z;\n        *w\n    }\n    "
+description: "(reborrow_move_ref_err)\n\nOxide:\n\n        letrgn<'x, 'y, 'z> {\n            let x: u32 = 5;\n            let y: &'x uniq u32 = &'x uniq x;\n            let z: &'y uniq &'x uniq u32 = &'y uniq y;\n            let w: &'z uniq &'x uniq u32 = &'z uniq *z;\n            *w\n        }\n        \nRust:\n\n        fn main() {\n            let mut x: u32 = 5;\n            let mut y: &mut u32 = &mut x;\n            let mut z: &mut &mut u32 = &mut y;\n            let mut w: &mut &mut u32 = &mut *z;\n            *w;\n        }"
 ---
 Step 1: t_let
 ConcreteTyping { 
@@ -43,7 +43,7 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -55,7 +55,7 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -67,7 +67,7 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -79,8 +79,8 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -92,8 +92,8 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -105,8 +105,8 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -118,9 +118,9 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32,
-		 z := &'y unique &'x unique u32
+		x := u32,
+		y := &'x unique u32,
+		z := &'y unique &'x unique u32
 	]
  }
 
@@ -132,11 +132,23 @@ ConcreteTyping {
 		'z -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32,
-		 z := &'y unique &'x unique u32
+		x := u32,
+		y := &'x unique u32,
+		z := &'y unique &'x unique u32
 	]
  }
 
 Step 12: END
 Cannot use y uniquely while a unique reference to y exists
+
+
+Rust does not compile:
+error[E0507]: cannot move out of `*w` which is behind a mutable reference
+ --> test_code.rs:7:13
+  |
+7 |             *w;
+  |             ^^ move occurs because `*w` has type `&mut u32`, which does not implement the `Copy` trait
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0507`.

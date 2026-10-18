@@ -1,6 +1,6 @@
 ---
 source: tests/typecheck_tests.rs
-description: "\n    letrgn<'x,  'y> {\n        let x: u32 = 5;\n        let y: &'x shrd u32 = &'x shrd x;\n        y; y; ()\n    }; ()\n    "
+description: "Oxide:\n\n        letrgn<'x,  'y> {\n            let x: u32 = 5;\n            let y: &'x shrd u32 = &'x shrd x;\n            y; y; ()\n        }; ()\n        \nRust:\nfn main() {\n            let mut x: u32 = 5;\n            let mut y: &u32 = &x;\n            y;\n            y;\n            ();\n        }"
 ---
 Step 1: t_letrgn
 ConcreteTyping { 
@@ -47,7 +47,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -58,7 +58,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -69,7 +69,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -80,8 +80,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x shared u32
+		x := u32,
+		y := &'x shared u32
 	]
  }
 
@@ -92,8 +92,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x shared u32
+		x := u32,
+		y := &'x shared u32
 	]
  }
 
@@ -104,8 +104,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x shared u32
+		x := u32,
+		y := &'x shared u32
 	]
  }
 
@@ -116,8 +116,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x shared u32
+		x := u32,
+		y := &'x shared u32
 	]
  }
 
@@ -128,8 +128,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x shared u32
+		x := u32,
+		y := &'x shared u32
 	]
  }
 
@@ -140,8 +140,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x shared u32
+		x := u32,
+		y := &'x shared u32
 	]
  }
 
@@ -152,8 +152,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x shared u32
+		x := u32,
+		y := &'x shared u32
 	]
  }
 
@@ -188,3 +188,6 @@ ConcreteTyping {
  	𝜏: [
 	]
  }
+
+
+Rust compiles

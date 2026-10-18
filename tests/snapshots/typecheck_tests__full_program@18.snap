@@ -1,6 +1,6 @@
 ---
 source: tests/typecheck_tests.rs
-description: "\n    letrgn<'x,  'y> {\n        let x: u32 = 5;\n        let y: &'x uniq u32 = &'x uniq x;\n        y; y; ()\n    }\n    "
+description: "(move_to_place_err2)\n\nOxide:\n\n        letrgn<'x,  'y> {\n            let x: u32 = 5;\n            let y: &'x uniq u32 = &'x uniq x;\n            y; y; ()\n        }\n        \nRust:\n\n        fn main() {\n            let mut x: u32 = 5;\n            let mut y: &mut u32 = &mut x;\n            y;\n            y;\n            ()\n        }"
 ---
 Step 1: t_let
 ConcreteTyping { 
@@ -39,7 +39,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -50,7 +50,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -61,7 +61,7 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32
+		x := u32
 	]
  }
 
@@ -72,8 +72,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -84,8 +84,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -96,8 +96,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		 y := &'x unique u32
+		x := u32,
+		y := &'x unique u32
 	]
  }
 
@@ -108,8 +108,8 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†
+		x := u32,
+		(y := &'x unique u32)†
 	]
  }
 
@@ -120,10 +120,26 @@ ConcreteTyping {
 		'y -> {  }
 	]
  	𝜏: [
-		 x := u32,
-		( y := &'x unique u32)†
+		x := u32,
+		(y := &'x unique u32)†
 	]
  }
 
 Step 12: END
-Use of moved value with type: ( y := &'x unique u32)†
+Use of moved value with type: (y := &'x unique u32)†
+
+
+Rust does not compile:
+error[E0382]: use of moved value: `y`
+ --> test_code.rs:6:13
+  |
+4 |             let mut y: &mut u32 = &mut x;
+  |                 ----- move occurs because `y` has type `&mut u32`, which does not implement the `Copy` trait
+5 |             y;
+  |             - value moved here
+6 |             y;
+  |             ^ value used here after move
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0382`.

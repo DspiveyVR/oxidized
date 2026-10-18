@@ -1,8 +1,8 @@
 use lalrpop_util::lalrpop_mod;
 lalrpop_mod!(pub parser);
-pub mod static_analysis;
 pub mod ast;
 pub mod debugging;
+pub mod static_analysis;
 pub mod testlib;
 
 #[macro_export]
@@ -15,13 +15,8 @@ macro_rules! set_snapshot_suffix {
 }
 
 // fn test() {
-//     struct A {
-//         a: i32,
-//     }
-
-//     let mut a = A { a: 4};
-//     let mut b = &mut a;
-//     let c =  *b;
-//     // let d = &mut (**c).a;
-//     // d;
+//     let mut x: u32 = 5;
+//     let mut y: &mut u32 = &mut x;
+//     let mut z: &mut u32 = y;
+//     let mut w: &mut &mut u32 = &mut y;
 // }

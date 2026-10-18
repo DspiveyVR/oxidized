@@ -84,7 +84,7 @@ impl Expression {
     fn t_constant(constant: &Constant) -> Result<Type, OxidizedError> {
         match constant {
             crate::ast::Constant::Unit => Ok(Type {
-                binding: None,
+                variable: None,
                 variant: TypeVariant::Base(BaseType::Unit),
                 is_sized: Ternary::Yes,
                 is_dead: Ternary::No,
@@ -92,7 +92,7 @@ impl Expression {
             crate::ast::Constant::True => todo!(),
             crate::ast::Constant::False => todo!(),
             crate::ast::Constant::Number(_) => Ok(Type {
-                binding: None,
+                variable: None,
                 variant: TypeVariant::Base(BaseType::U32),
                 is_sized: Ternary::Yes,
                 is_dead: Ternary::No,
@@ -165,7 +165,7 @@ impl Expression {
                 let continuation_typing = ct_clone;
                 let typ = err_if_dead(typ)?;
                 let mut return_type = typ.clone();
-                return_type.binding = None;
+                return_type.variable = None;
                 let mut dead_type = typ.clone();
                 dead_type.is_dead = Ternary::Yes;
                 stack_typing = stack_typing.set_type(typ, dead_type);
@@ -190,7 +190,7 @@ impl Expression {
                 let continuation_typing = ct_clone;
                 let typ = err_if_dead(typ)?;
                 let mut return_type = typ.clone();
-                return_type.binding = None;
+                return_type.variable = None;
 
                 Ok((None, TCReturn::TCResult(Ok((stack_typing, return_type)))))
             },
@@ -235,7 +235,7 @@ impl Expression {
                     )?;
 
                     let ref_type = Type {
-                        binding: None,
+                        variable: None,
                         variant: TypeVariant::Reference(ReferenceType {
                             region_name: ref_annotation.0.to_string(),
                             ownership_qualifier: ref_annotation.1,
@@ -367,12 +367,6 @@ impl Expression {
                         RegionRewriteMode::Equals,
                     )?;
 
-                    if !place_type.binding.as_ref().unwrap().is_mut {
-                        return Err(OxidizedError::NoMutAnnotation(
-                            place_type.binding.unwrap().variable,
-                        ));
-                    }
-
                     if let Err(err) = gamma1_prime.o_safe_place(
                         &ct_clone2,
                         place,
@@ -385,7 +379,7 @@ impl Expression {
                     }
 
                     let mut bound_type = return_type.clone();
-                    bound_type.binding = place_type.clone().binding;
+                    bound_type.variable = place_type.clone().variable;
 
                     Ok((
                         None,
@@ -440,7 +434,6 @@ impl Expression {
     ) -> TCReturnResult {
         if let Expression::Let {
             name,
-            is_mut,
             type_annotation,
             e: e1,
         } = self
@@ -469,10 +462,7 @@ impl Expression {
                     }
 
                     let mut bound_type = annotated_type;
-                    bound_type.binding = Some(Binding {
-                        variable: name.to_string(),
-                        is_mut,
-                    });
+                    bound_type.variable = Some(name.to_string());
                     let mut gamma1_modified = gamma1.add_type(bound_type.clone());
                     gamma1_modified = gamma1_modified.rewrite_regions(
                         return_type,

@@ -6,24 +6,34 @@ use crate::static_analysis::data_structures::*;
 
 impl Display for TypeComputation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let entries = self
-            .clone()
-            .into_iter()
-            .map(|(typ, pe_pointer)| {
-                let place_str =
-                    if &pe_pointer.place_expression == &(pe_pointer.points_to.clone().into()) {
-                        pe_pointer.points_to.to_string()
-                    } else {
-                        format!(
-                            "({} -> {})",
-                            pe_pointer.place_expression, pe_pointer.points_to
-                        )
-                    };
-                format!("{place_str}: {typ}")
-            })
-            .collect::<Vec<String>>();
+        match self {
+            TypeComputation::DerefChain(items) => {
+                let entries = items
+                    .into_iter()
+                    .map(
+                        |TypeComputationEntry {
+                             typ,
+                             place,
+                             is_deref,
+                         }| {
+                            format!(
+                                "{}{place}: {typ}",
+                                if *is_deref {
+                                    "*".to_string()
+                                } else {
+                                    "".to_string()
+                                }
+                            )
+                        },
+                    )
+                    .collect::<Vec<String>>();
 
-        write!(f, "[{}]", entries.join(", "))
+                write!(f, "[{}]", entries.join(", "))
+            }
+            TypeComputation::Place(TypeComputationEntry { typ, place, .. }) => {
+                write!(f, "{place}: {typ}")
+            }
+        }
     }
 }
 

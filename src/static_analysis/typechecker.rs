@@ -15,12 +15,21 @@ there's a little more to the regions() metafunction than just accessing the regi
 in the cont typing.  probably can forget about it for now.
 
 */
+
+
+/*
+NEXT TODO
+
+probably should do the stuff i wrote down for vecset to eliminate direct access and then do the debugger stuff. so rename
+state machine to Debugger and move it to debugging module, then implement ownership checking states to add to the debugger.
+
+*/
+
 use super::data_structures::*;
 use super::tc_state_machine::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
-use crate::debugging::display_impls::_vec_display_elements;
 use crate::static_analysis::auxiliary::err_if_dead;
 use crate::static_analysis::auxiliary::get_unit;
 
@@ -100,6 +109,9 @@ impl Expression {
         if let Ok(typ) =
             stack_typing.flat_compute_type(place_expression.clone(), OwnershipQualifier::Shrd)
         {
+            // FIXME: Something about this logic is wrong. I should be able to copy a value out from under a unique reference
+            // but this shrd value for the ownership parameter prevents this, since the uniq references cannot be dereferenced
+            // in a shrd context
             if typ.copyable() {
                 let _ = stack_typing.ownership_check(
                     &continuation_typing,
@@ -520,54 +532,31 @@ impl ConcreteTyping {
         reborrow_exclusion_list: &VecSet<Place>,
     ) -> Result<VecSet<Loan>, OxidizedError> {
         let tc = self.compute_type(place_expression.clone(), ownership_qualifier)?;
-        let mut tc_iter = tc.into_iter();
         let mut next_excl = reborrow_exclusion_list.clone();
         let mut final_loans = VecSet::new();
-        // let final_loans = if let Some((typ, pe_ptr)) = tc_iter.next() {
-        //     match pe_ptr.place_expression.clone() {
-        //         PlaceExpression::Deref(_) => {
-        //             let res = self.o_deref(
-        //                 continuation_typing,
-        //                 ownership_qualifier,
-        //                 &next_excl,
-        //                 typ,
-        //                 pe_ptr.points_to,
-        //             )?;
-        //             next_excl = res.1;
-        //             res.0
-        //         }
-        //         PlaceExpression::Place(place) => {
-        //             self.o_safe_place(continuation_typing, place, ownership_qualifier, &next_excl)?
-        //         }
-        //         PlaceExpression::PathAccess(place_expression, items) => todo!(),
-        //     }
-        // } else {
-        //     VecSet::new()
-        // };
 
-        // FIXME: Safe_place should not be called in deref chains (except on the loans) and I think the places and derefs should not be seperate
-        // entries in tc, but each one should just be a pe_pointer and not have a duplicate. So it's either just one place or its a place expression
-        // where the place is stricly with reference to the deref.
-        for (typ, pe_ptr) in tc_iter {
-            match pe_ptr.place_expression.clone() {
-                PlaceExpression::Deref(_) => {
-                    (final_loans, next_excl) = self.o_deref(
-                        continuation_typing,
-                        ownership_qualifier,
-                        &next_excl,
-                        typ,
-                        pe_ptr.points_to,
-                    )?;
+        match tc {
+            TypeComputation::DerefChain(entries) => {
+                for TypeComputationEntry {
+                    typ,
+                    place,
+                    is_deref,
+                } in entries
+                {
+                    if is_deref {
+                        (final_loans, next_excl) = self.o_deref(
+                            continuation_typing,
+                            ownership_qualifier,
+                            &next_excl,
+                            typ,
+                            place,
+                        )?
+                    }
                 }
-                PlaceExpression::Place(place) => {
-                    self.o_safe_place(
-                        continuation_typing,
-                        place,
-                        ownership_qualifier,
-                        &next_excl,
-                    )?;
-                }
-                PlaceExpression::PathAccess(place_expression, items) => todo!(),
+            }
+            TypeComputation::Place(TypeComputationEntry { place, .. }) => {
+                final_loans =
+                    self.o_safe_place(continuation_typing, place, ownership_qualifier, &next_excl)?
             }
         }
 

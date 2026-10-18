@@ -1,11 +1,8 @@
 use std::println;
 
-use oxidized::{
-    parser::ExprParser,
-    static_analysis::{
-        data_structures::{ConcreteTyping, OxidizedError},
-        tc_state_machine::{TCReturn, TCReturnResult, TCState, TCStateMachine},
-    },
+use oxidized::static_analysis::{
+    data_structures::ConcreteTyping,
+    tc_state_machine::{TCReturn, TCReturnResult, TCState, TCStateMachine},
 };
 
 fn main() {
@@ -15,10 +12,8 @@ fn main() {
         let x: u32 = 5;
         let y: &'x uniq u32 = &'x uniq x;
         let z: &'y uniq &'x uniq u32 = &'y uniq y;
-        let w: &'z uniq &'x uniq u32 = &'z uniq *z;
-        *w
+        let w: u32 = **z
     }
-
 
     ";
     let ast = oxidized::parser::ExprParser::new().parse(program).unwrap();

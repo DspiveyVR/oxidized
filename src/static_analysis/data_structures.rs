@@ -2,7 +2,7 @@
 
 use crate::{
     ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation},
-    static_analysis::auxiliary::err_if_dead,
+    static_analysis::{auxiliary::err_if_dead, data_structures::TypeComputation::DerefChain},
 };
 use serde::Serialize;
 use std::{fmt::Debug, panic, todo, vec};
@@ -162,6 +162,7 @@ where
     fn union(&self, other: Self) -> Self;
 }
 
+// FIXME: This should be the set trait stoopid
 pub trait TypeEnv {
     fn union(&self, other: Self) -> Self;
 }
@@ -177,87 +178,40 @@ impl TypeEnv for ConcreteTyping {
 }
 
 #[derive(Clone)]
-// FIXME: Probably need an enum variant so you dont copy a place twice cause that's weird.jK:w
-pub struct PlaceExpressionPointer {
-    pub place_expression: PlaceExpression,
-    pub points_to: Place,
+pub struct TypeComputationEntry {
+    pub typ: Type,
+    pub place: Place,
+    pub is_deref: bool,
 }
 
-#[derive(Clone)]
-pub struct TypeComputation {
-    pub types: Vec<Type>,
-    pub places: Vec<PlaceExpressionPointer>,
-}
-
-pub struct TypeComputationIterator {
-    tc: TypeComputation,
-    head: isize,
-}
-
-impl IntoIterator for TypeComputation {
-    type Item = (Type, PlaceExpressionPointer);
-
-    type IntoIter = TypeComputationIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        TypeComputationIterator {
-            tc: self.clone(),
-            head: 0,
-        }
-    }
-}
-
-impl Iterator for TypeComputationIterator {
-    type Item = (Type, PlaceExpressionPointer);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.head == -1 {
-            return None;
-        }
-
-        let head = self.head as usize;
-        match (self.tc.types.get(head), self.tc.places.get(head)) {
-            (Some(typ), Some(place)) => {
-                self.head += 1;
-                Some((typ.clone(), place.clone()))
-            }
-            _ => None,
-        }
-    }
+pub enum TypeComputation {
+    DerefChain(Vec<TypeComputationEntry>),
+    Place(TypeComputationEntry),
 }
 
 impl TypeComputation {
-    pub fn new() -> Self {
-        TypeComputation {
-            types: vec![],
-            places: vec![],
+    fn push(&mut self, entry: TypeComputationEntry) {
+        if let DerefChain(vec) = self {
+            vec.push(entry);
+        } else {
+            panic!("Not a deref chain");
         }
-    }
-
-    pub fn get_type_value(&self) -> &Type {
-        self.types.first().unwrap()
-    }
-
-    pub fn get_place_value(&self) -> &Place {
-        &self.places.first().unwrap().points_to
-    }
-
-    pub fn push(&mut self, pointer: PlaceExpressionPointer, typ: Type) {
-        self.places.push(pointer);
-        self.types.push(typ);
-    }
-
-    pub fn concat(&self, other: &TypeComputation) -> TypeComputation {
-        TypeComputation {
-            types: [&self.types[..], &other.types[..]].concat(),
-            places: [&self.places[..], &other.places[..]].concat(),
-        }
-    }
-
-    pub fn get_depth(&self) -> usize {
-        self.places.len()
     }
 }
+
+// impl IntoIterator for TypeComputation {
+//     type Item = TypeComputationEntry;
+
+//     type IntoIter = std::vec::IntoIter<Self::Item>;
+
+//     fn into_iter(self) -> Self::IntoIter {
+//         if let DerefChain(vec) = self {
+//             vec.into_iter()
+//         } else {
+//             panic!("Not a deref chain");
+//         }
+//     }
+// }
 
 impl ConcreteTyping {
     pub fn lookup_type(&self, place: Place) -> Result<Type, OxidizedError> {
@@ -305,27 +259,117 @@ impl ConcreteTyping {
 
 
      */
+
+    pub fn compute_type(
+        &self,
+        place_expression: PlaceExpression,
+        ownership_qualifier: OwnershipQualifier,
+    ) -> Result<TypeComputation, OxidizedError> {
+        self._compute_type(place_expression, ownership_qualifier, true)
+    }
+
+    fn _compute_type(
+        &self,
+        place_expression: PlaceExpression,
+        ownership_qualifier: OwnershipQualifier,
+        do_ord_check: bool,
+    ) -> Result<TypeComputation, OxidizedError> {
+        match place_expression {
+            PlaceExpression::Deref(inner_pe) => {
+                let tc = TypeComputation::DerefChain(vec![]);
+                let (mut tc, (type_val, place)) =
+                    self.__compute_type(tc, *inner_pe, ownership_qualifier, do_ord_check)?;
+
+                tc.push(TypeComputationEntry {
+                    typ: type_val,
+                    place,
+                    is_deref: false,
+                });
+
+                Ok(tc)
+            }
+            PlaceExpression::Place(place) => Ok(TypeComputation::Place(TypeComputationEntry {
+                typ: self.lookup_type(place.clone())?,
+                place,
+                is_deref: false,
+            })),
+            PlaceExpression::PathAccess(..) => todo!(),
+        }
+    }
+
+    fn __compute_type(
+        &self,
+        mut tc: TypeComputation,
+        place_expression: PlaceExpression,
+        ownership_qualifier: OwnershipQualifier,
+        do_ord_check: bool,
+    ) -> Result<(TypeComputation, (Type, Place)), OxidizedError> {
+        match place_expression {
+            PlaceExpression::Place(place) => {
+                let typ = self.lookup_type(place.clone())?;
+                tc.push(TypeComputationEntry {
+                    typ: typ.clone(),
+                    place,
+                    is_deref: true,
+                });
+
+                if let TypeVariant::Reference(ref_type) = typ.variant {
+                    let target = err_if_dead(*ref_type.target_type.clone())?;
+
+                    if do_ord_check && ownership_qualifier > ref_type.ownership_qualifier {
+                        return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
+                    }
+
+                    let referenced_place = self
+                        .get_region(ref_type.region_name)?
+                        .get_referenced_place();
+
+                    Ok((tc, (target, referenced_place)))
+                } else {
+                    panic!("Unexpected match")
+                }
+            }
+            PlaceExpression::Deref(place_expression) => {
+                let (mut tc, (prev_target, prev_referenced_place)) =
+                    self.__compute_type(tc, *place_expression, ownership_qualifier, do_ord_check)?;
+
+                tc.push(TypeComputationEntry {
+                    typ: prev_target.clone(),
+                    place: prev_referenced_place,
+                    is_deref: true,
+                });
+
+                if let TypeVariant::Reference(ref_type) = prev_target.variant {
+                    let target = err_if_dead(*ref_type.target_type.clone())?;
+
+                    if do_ord_check && ownership_qualifier > ref_type.ownership_qualifier {
+                        return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
+                    }
+
+                    let referenced_place = self
+                        .get_region(ref_type.region_name)?
+                        .get_referenced_place();
+
+                    Ok((tc, (target, referenced_place)))
+                } else {
+                    panic!("Unexpected match")
+                }
+            }
+            PlaceExpression::PathAccess(place_expression, items) => todo!(),
+        }
+    }
+
     pub fn flat_compute_type_no_ord(
         &self,
         place_expression: PlaceExpression,
     ) -> Result<Type, OxidizedError> {
-        match place_expression {
-            PlaceExpression::Deref(ref inner_pe) => {
-                if let PlaceExpression::Place(place) = *(inner_pe.clone()) {
-                    let typ = self.lookup_type(place.clone())?;
-                    if let TypeVariant::Reference(ref_type) = typ.variant {
-                        let target = err_if_dead(*ref_type.target_type.clone())?;
-
-                        Ok(target)
-                    } else {
-                        panic!("Unexpected match")
-                    }
-                } else {
-                    todo!()
-                }
-            }
-            PlaceExpression::Place(place) => self.lookup_type(place),
-            PlaceExpression::PathAccess(..) => todo!(),
+        match self._compute_type(
+            place_expression,
+            OwnershipQualifier::Shrd, /* Dummy value */
+            false,
+        )? {
+            DerefChain(entries) => Ok(entries.last().unwrap().typ.clone()),
+            TypeComputation::Place(type_computation_entry) => Ok(type_computation_entry.typ),
         }
     }
 
@@ -334,81 +378,10 @@ impl ConcreteTyping {
         place_expression: PlaceExpression,
         ownership_qualifier: OwnershipQualifier,
     ) -> Result<Type, OxidizedError> {
-        match place_expression {
-            PlaceExpression::Deref(ref inner_pe) => {
-                if let PlaceExpression::Place(place) = *(inner_pe.clone()) {
-                    let typ = self.lookup_type(place.clone())?;
-                    if let TypeVariant::Reference(ref_type) = typ.variant {
-                        let target = err_if_dead(*ref_type.target_type.clone())?;
-
-                        if ownership_qualifier > ref_type.ownership_qualifier {
-                            return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
-                        }
-
-                        Ok(target)
-                    } else {
-                        panic!("Unexpected match")
-                    }
-                } else {
-                    todo!()
-                }
-            }
-            PlaceExpression::Place(place) => self.lookup_type(place),
-            PlaceExpression::PathAccess(..) => todo!(),
+        match self.compute_type(place_expression, ownership_qualifier)? {
+            DerefChain(entries) => Ok(entries.last().unwrap().typ.clone()),
+            TypeComputation::Place(type_computation_entry) => Ok(type_computation_entry.typ),
         }
-    }
-
-    pub fn compute_type(
-        &self,
-        place_expression: PlaceExpression,
-        ownership_qualifier: OwnershipQualifier,
-    ) -> Result<TypeComputation, OxidizedError> {
-        let mut tc = TypeComputation::new();
-        match place_expression {
-            PlaceExpression::Deref(ref inner_pe) => {
-                if let PlaceExpression::Place(place) = *(inner_pe.clone()) {
-                    let typ = self.lookup_type(place.clone())?;
-                    tc.push(
-                        PlaceExpressionPointer {
-                            place_expression,
-                            points_to: place.clone(),
-                        },
-                        typ.clone(),
-                    );
-
-                    if let TypeVariant::Reference(ref_type) = typ.variant {
-                        let target = err_if_dead(*ref_type.target_type.clone())?;
-
-                        if ownership_qualifier > ref_type.ownership_qualifier {
-                            return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
-                        }
-
-                        let referenced_place = self
-                            .get_region(ref_type.region_name)?
-                            .get_referenced_place();
-                        let pointer = PlaceExpressionPointer {
-                            place_expression: referenced_place.clone().into(),
-                            points_to: referenced_place,
-                        };
-                        tc.push(pointer, target);
-                    } else {
-                        panic!("Unexpected match")
-                    }
-                } else {
-                    todo!()
-                }
-            }
-            PlaceExpression::Place(place) => tc.push(
-                PlaceExpressionPointer {
-                    place_expression: place.clone().into(),
-                    points_to: place.clone(),
-                },
-                self.lookup_type(place)?,
-            ),
-            PlaceExpression::PathAccess(..) => todo!(),
-        }
-
-        Ok(tc)
     }
 
     pub fn add_region(&self, new_region: ConcreteRegion) -> Self {

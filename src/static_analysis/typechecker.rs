@@ -25,7 +25,7 @@ state machine to Debugger and move it to debugging module, then implement owners
 */
 
 use super::data_structures::*;
-use super::tc_state_machine::*;
+use crate::debugging::tc_state::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;

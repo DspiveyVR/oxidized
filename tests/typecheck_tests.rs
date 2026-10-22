@@ -9,7 +9,7 @@ use oxidized::debugging::tc_state::*;
 use oxidized::debugging::debugger::*;
 use oxidized::testlib::oxide_programs;
 
-fn unwrap_state(result: TCReturnResult) -> Box<dyn DebuggerState> {
+fn unwrap_state(result: TCStepResult) -> Box<dyn DebuggerState> {
     match result {
         Ok(result) => match result.1 {
             TCReturn::TCResult(_) => todo!(),

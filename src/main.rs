@@ -1,6 +1,6 @@
 use std::println;
 
-use oxidized::debugging::tc_state::{TCReturn, TCReturnResult, DebuggerState};
+use oxidized::debugging::tc_state::{TCReturn, TCStepResult, DebuggerState};
 use oxidized::debugging::debugger::Debugger;
 use oxidized::static_analysis::data_structures::ConcreteTyping;
 
@@ -28,7 +28,7 @@ fn main() {
     }
 }
 
-fn unwrap_state(result: TCReturnResult) -> Box<dyn DebuggerState> {
+fn unwrap_state(result: TCStepResult) -> Box<dyn DebuggerState> {
     match result {
         Ok(result) => match result.1 {
             TCReturn::TCResult(_) => todo!(),

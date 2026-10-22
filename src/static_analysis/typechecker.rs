@@ -16,14 +16,6 @@ in the cont typing.  probably can forget about it for now.
 
 */
 
-/*
-NEXT TODO
-
-do the debugger stuff. so rename
-state machine to Debugger and move it to debugging module, then implement ownership checking states to add to the debugger.
-
-*/
-
 use super::data_structures::*;
 use crate::debugging::tc_state::*;
 use crate::ast::Constant;
@@ -37,7 +29,7 @@ impl Expression {
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         match self {
             Expression::Letrgn(..) => self.t_letrgn(stack_typing, continuation_typing),
             Expression::Sequence(..) => self.t_seq(stack_typing, continuation_typing),
@@ -104,7 +96,7 @@ impl Expression {
         place_expression: PlaceExpression,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         if let Ok(typ) =
             stack_typing.flat_compute_type(place_expression.clone(), OwnershipQualifier::Shrd)
         {
@@ -156,7 +148,7 @@ impl Expression {
         typ: Type,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         let st_clone = stack_typing.clone();
         let ct_clone = continuation_typing.clone();
         TExprState::new_obj(
@@ -181,7 +173,7 @@ impl Expression {
         typ: Type,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         let st_clone = stack_typing.clone();
         let ct_clone = continuation_typing.clone();
         TExprState::new_obj(
@@ -203,7 +195,7 @@ impl Expression {
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         let st_clone = stack_typing.clone();
         let ct_clone = continuation_typing.clone();
         TExprState::new_obj(
@@ -262,7 +254,7 @@ impl Expression {
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         let st_clone = stack_typing.clone();
         let cont_clone = continuation_typing.clone();
         let st_clone2 = stack_typing.clone();
@@ -326,7 +318,7 @@ impl Expression {
         place: Place,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         if let Expression::Assign(_, e) = self {
             let st_clone = stack_typing.clone();
             let st_clone2 = stack_typing.clone();
@@ -401,7 +393,7 @@ impl Expression {
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         if let Expression::Sequence(e1, e2) = self {
             if let Expression::Let { .. } = *e1 {
                 e1.t_let(stack_typing, continuation_typing, *e2)
@@ -431,7 +423,7 @@ impl Expression {
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
         e2: Expression,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         if let Expression::Let {
             name,
             type_annotation,
@@ -557,10 +549,10 @@ impl ConcreteTyping {
         continuation_typing: &Self,
         ownership_qualifier: OwnershipQualifier,
         reborrow_exclusion_list: &VecSet<Place>,
-        typ: Type,
+        ref_type: Type,
         place: Place,
     ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
-        if let TypeVariant::Reference(ref_type) = typ.variant {
+        if let TypeVariant::Reference(ref_type) = ref_type.variant {
             if ownership_qualifier > ref_type.ownership_qualifier {
                 return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
             }

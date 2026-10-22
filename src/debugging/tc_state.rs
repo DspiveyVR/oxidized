@@ -9,22 +9,25 @@ pub enum TCReturn {
     TCResult(TCResult),
     TCState(Box<dyn DebuggerState>),
 }
-pub type TCReturnResult = Result<(Option<Box<dyn DebuggerState>>, TCReturn), OxidizedError>;
+// FIXME: Probably will be moved into debugger to be made more generic
+pub struct StepEnvelope {
+    pub yielded_state: Option<Box<dyn DebuggerState>>, // Returns ownership to the caller. Functions stored in the state are consumed with .take() so that ownership of the state can be transferred again.
+    pub result: TCReturn, // Result of TC/OC function.
+}
+
+pub type TCStepResult = Result<StepEnvelope, OxidizedError>;
 pub type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
 // FIXME: For now i'll ignore the continuation typing
-type TCFn = dyn FnOnce() -> TCReturnResult;
-type TCConsumerFn = dyn FnOnce(ConcreteTyping) -> TCReturnResult;
-type TCPopVarsFn = dyn FnOnce(TCResult) -> TCReturnResult;
-type TC2ConsumerFn = dyn FnOnce(ConcreteTyping, Type) -> TCReturnResult;
-type TC3ConsumerFn = dyn FnOnce(ConcreteTyping, Type, Type) -> TCReturnResult;
+type TC0ParamFn = dyn FnOnce() -> TCStepResult;
+type TC1ParamFn = dyn FnOnce(ConcreteTyping) -> TCStepResult;
+type TCPopVarsFn = dyn FnOnce(TCResult) -> TCStepResult;
+type TC2ParamFn = dyn FnOnce(ConcreteTyping, Type) -> TCStepResult;
+type TC3ParamFn = dyn FnOnce(ConcreteTyping, Type, Type) -> TCStepResult;
 
-// FIXME: DebuggerState should be replaced with this trait and therefore moved into that file. 
-// I think this can be used for both TC and OC. No enums needed. The return types can just be changed 
-// so they're compatible with both TC and OC.
 pub trait DebuggerState: Display {
-    fn step_into(self: Box<Self>) -> TCReturnResult;
+    fn step_into(self: Box<Self>) -> TCStepResult;
 
-    fn step_over(self: Box<Self>) -> TCReturnResult;
+    fn step_over(self: Box<Self>) -> TCStepResult;
 
     fn evaluate(self: Box<Self>) -> TCResult;
 
@@ -42,13 +45,13 @@ pub trait DebuggerState: Display {
 }
 
 pub struct TExprState {
-    e_fn: Option<Box<TCFn>>,
+    e_fn: Option<Box<TC0ParamFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     method_name: String,
 }
 
 pub struct TLetrgnState {
-    e_fn: Option<Box<TCFn>>,
+    e_fn: Option<Box<TC0ParamFn>>,
     pop_vars_fn: Option<Box<TCPopVarsFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     pub(crate) e_result: Option<TCResult>,
@@ -56,18 +59,18 @@ pub struct TLetrgnState {
 }
 
 pub struct TSeqState {
-    e1_fn: Option<Box<TCFn>>,
-    e2_fn: Option<Box<TCConsumerFn>>,
+    e1_fn: Option<Box<TC0ParamFn>>,
+    e2_fn: Option<Box<TC1ParamFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     pub(crate) e1_result: Option<TCResult>,
     method_name: String,
 }
 
 pub struct TLetState {
-    e1_fn: Option<Box<TCFn>>,
-    binding_fn: Option<Box<TC2ConsumerFn>>,
-    e2_fn: Option<Box<TCConsumerFn>>,
-    gc_fn: Option<Box<TC3ConsumerFn>>,
+    e1_fn: Option<Box<TC0ParamFn>>,
+    binding_fn: Option<Box<TC2ParamFn>>,
+    e2_fn: Option<Box<TC1ParamFn>>,
+    gc_fn: Option<Box<TC3ParamFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     pub(crate) e1_result: Option<TCResult>,
     pub(crate) binding_result: Option<TCResult>,
@@ -75,14 +78,14 @@ pub struct TLetState {
 }
 
 pub struct TAssignState {
-    e_fn: Option<Box<TCFn>>,
-    binding_fn: Option<Box<TC2ConsumerFn>>,
+    e_fn: Option<Box<TC0ParamFn>>,
+    binding_fn: Option<Box<TC2ParamFn>>,
     env_state: (ConcreteTyping, ConcreteTyping),
     method_name: String,
 }
 
 impl DebuggerState for TExprState {
-    fn step_into(mut self: Box<Self>) -> TCReturnResult {
+    fn step_into(mut self: Box<Self>) -> TCStepResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[step_into]]\n{}</red>", self);
             cprintln!("<yellow>[called]: e_fn()</yellow>");
@@ -92,7 +95,7 @@ impl DebuggerState for TExprState {
         Ok(e_return)
     }
 
-    fn step_over(self: Box<Self>) -> TCReturnResult {
+    fn step_over(self: Box<Self>) -> TCStepResult {
         self.step_into()
     }
 
@@ -130,11 +133,11 @@ impl DebuggerState for TExprState {
 }
 
 impl TExprState {
-    pub fn new_obj<TCFn: FnOnce() -> TCReturnResult + 'static>(
-        e_fn: TCFn,
+    pub fn new_obj<TC0ParamFn: FnOnce() -> TCStepResult + 'static>(
+        e_fn: TC0ParamFn,
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         Ok((
             None,
             TCReturn::TCState(Box::new(Self {
@@ -147,7 +150,7 @@ impl TExprState {
 }
 
 impl DebuggerState for TLetrgnState {
-    fn step_into(mut self: Box<Self>) -> TCReturnResult {
+    fn step_into(mut self: Box<Self>) -> TCStepResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[step_into]]\n{}</red>", self);
             cprintln!("<yellow>[called]: e_fn()</yellow>");
@@ -157,7 +160,7 @@ impl DebuggerState for TLetrgnState {
         Ok(e_return)
     }
 
-    fn step_over(self: Box<Self>) -> TCReturnResult {
+    fn step_over(self: Box<Self>) -> TCStepResult {
         self.step_into()
     }
 
@@ -202,14 +205,14 @@ impl DebuggerState for TLetrgnState {
 
 impl TLetrgnState {
     pub fn new_obj<
-        TCFn: FnOnce() -> TCReturnResult + 'static,
-        TCPopVarsFn: FnOnce(TCResult) -> TCReturnResult + 'static,
+        TC0ParamFn: FnOnce() -> TCStepResult + 'static,
+        TCPopVarsFn: FnOnce(TCResult) -> TCStepResult + 'static,
     >(
-        e_fn: TCFn,
+        e_fn: TC0ParamFn,
         pop_vars_fn: TCPopVarsFn,
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         Ok((
             None,
             TCReturn::TCState(Box::new(Self {
@@ -224,7 +227,7 @@ impl TLetrgnState {
 }
 
 impl DebuggerState for TSeqState {
-    fn step_into(mut self: Box<Self>) -> TCReturnResult {
+    fn step_into(mut self: Box<Self>) -> TCStepResult {
         if let Some(_) = self.e1_result {
             return self.step_over();
         }
@@ -267,7 +270,7 @@ impl DebuggerState for TSeqState {
         self.env_state.clone()
     }
 
-    fn step_over(mut self: Box<Self>) -> TCReturnResult {
+    fn step_over(mut self: Box<Self>) -> TCStepResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[step_over]]\n{}</red>", self);
         }
@@ -322,14 +325,14 @@ impl DebuggerState for TSeqState {
 
 impl TSeqState {
     pub fn new_obj<
-        TCFn: FnOnce() -> TCReturnResult + 'static,
-        TCConsumerFn: FnOnce(ConcreteTyping) -> TCReturnResult + 'static,
+        TC0ParamFn: FnOnce() -> TCStepResult + 'static,
+        TC1ParamFn: FnOnce(ConcreteTyping) -> TCStepResult + 'static,
     >(
-        e1_fn: TCFn,
-        e2_fn: TCConsumerFn,
+        e1_fn: TC0ParamFn,
+        e2_fn: TC1ParamFn,
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         Ok((
             None,
             TCReturn::TCState(Box::new(Self {
@@ -344,7 +347,7 @@ impl TSeqState {
 }
 
 impl DebuggerState for TAssignState {
-    fn step_into(mut self: Box<Self>) -> TCReturnResult {
+    fn step_into(mut self: Box<Self>) -> TCStepResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[step_into]]\n{}</red>", self);
             cprintln!("<yellow>[called]: e_fn()</yellow>");
@@ -354,7 +357,7 @@ impl DebuggerState for TAssignState {
         Ok(e_result)
     }
 
-    fn step_over(self: Box<Self>) -> TCReturnResult {
+    fn step_over(self: Box<Self>) -> TCStepResult {
         self.step_into()
     }
 
@@ -408,14 +411,14 @@ impl DebuggerState for TAssignState {
 
 impl TAssignState {
     pub fn new_obj<
-        TCFn: FnOnce() -> TCReturnResult + 'static,
-        TC2ConsumerFn: FnOnce(ConcreteTyping, Type) -> TCReturnResult + 'static,
+        TC0ParamFn: FnOnce() -> TCStepResult + 'static,
+        TC2ParamFn: FnOnce(ConcreteTyping, Type) -> TCStepResult + 'static,
     >(
-        e_fn: TCFn,
-        binding_fn: TC2ConsumerFn,
+        e_fn: TC0ParamFn,
+        binding_fn: TC2ParamFn,
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         Ok((
             None,
             TCReturn::TCState(Box::new(Self {
@@ -429,7 +432,7 @@ impl TAssignState {
 }
 
 impl DebuggerState for TLetState {
-    fn step_into(mut self: Box<Self>) -> TCReturnResult {
+    fn step_into(mut self: Box<Self>) -> TCStepResult {
         if let Some(_) = self.e1_result {
             return self.step_over();
         }
@@ -454,7 +457,7 @@ impl DebuggerState for TLetState {
         self.env_state.clone()
     }
 
-    fn step_over(mut self: Box<Self>) -> TCReturnResult {
+    fn step_over(mut self: Box<Self>) -> TCStepResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[step_over]]\n{}</red>", self);
         }
@@ -596,18 +599,18 @@ impl DebuggerState for TLetState {
 
 impl TLetState {
     pub fn new_obj<
-        TCFn: FnOnce() -> TCReturnResult + 'static,
-        TCConsumerFn: FnOnce(ConcreteTyping) -> TCReturnResult + 'static,
-        TC2ConsumerFn: FnOnce(ConcreteTyping, Type) -> TCReturnResult + 'static,
-        TC3ConsumerFn: FnOnce(ConcreteTyping, Type, Type) -> TCReturnResult + 'static,
+        TC0ParamFn: FnOnce() -> TCStepResult + 'static,
+        TC1ParamFn: FnOnce(ConcreteTyping) -> TCStepResult + 'static,
+        TC2ParamFn: FnOnce(ConcreteTyping, Type) -> TCStepResult + 'static,
+        TC3ParamFn: FnOnce(ConcreteTyping, Type, Type) -> TCStepResult + 'static,
     >(
-        e1_fn: TCFn,
-        binding_fn: TC2ConsumerFn,
-        e2_fn: TCConsumerFn,
-        gc_fn: TC3ConsumerFn,
+        e1_fn: TC0ParamFn,
+        binding_fn: TC2ParamFn,
+        e2_fn: TC1ParamFn,
+        gc_fn: TC3ParamFn,
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
-    ) -> TCReturnResult {
+    ) -> TCStepResult {
         Ok((
             None,
             TCReturn::TCState(Box::new(Self {
@@ -623,4 +626,3 @@ impl TLetState {
         ))
     }
 }
-

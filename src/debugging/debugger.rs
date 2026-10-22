@@ -1,3 +1,9 @@
+/*
+    For TC and OC states:
+        fn fields have optional types so that they can be taken in order to prevent "partailly moved" errors when trying to return self
+        after calling one of these functions. self is returned by the step functions in order to transfer ownership back to the caller.
+*/
+
 use crate::debugging::tc_state::*;
 use crate::static_analysis::auxiliary::get_unit;
 use crate::static_analysis::data_structures::*;
@@ -128,10 +134,7 @@ impl Debugger {
                 _ => {
                     if let Some(state) = self.states.last() {
                         let env_state = state.get_env_state();
-                        results.push((
-                            Ok((env_state.0, get_unit())),
-                            state.get_method_name(),
-                        ));
+                        results.push((Ok((env_state.0, get_unit())), state.get_method_name()));
                     }
                 }
             }

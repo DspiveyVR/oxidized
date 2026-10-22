@@ -5,10 +5,11 @@ use oxidized::testlib::oxide_programs::check_rust_code;
 use rstest::*;
 
 use oxidized::static_analysis::data_structures::ConcreteTyping;
-use oxidized::static_analysis::tc_state_machine::*;
+use oxidized::debugging::tc_state::*;
+use oxidized::debugging::debugger::*;
 use oxidized::testlib::oxide_programs;
 
-fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
+fn unwrap_state(result: TCReturnResult) -> Box<dyn DebuggerState> {
     match result {
         Ok(result) => match result.1 {
             TCReturn::TCResult(_) => todo!(),
@@ -72,7 +73,7 @@ fn full_program(#[case] program: TestProgram, #[case] n: u32) {
     }, {
         insta::assert_snapshot!({
             let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
-            let mut state_machine = TCStateMachine::new(state);
+            let mut state_machine = Debugger::new(state);
             let results = state_machine.deep_evaluate();
             let results = results
                 .iter()

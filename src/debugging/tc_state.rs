@@ -7,9 +7,9 @@ use std::vec;
 
 pub enum TCReturn {
     TCResult(TCResult),
-    TCState(Box<dyn TCState>),
+    TCState(Box<dyn DebuggerState>),
 }
-pub type TCReturnResult = Result<(Option<Box<dyn TCState>>, TCReturn), OxidizedError>;
+pub type TCReturnResult = Result<(Option<Box<dyn DebuggerState>>, TCReturn), OxidizedError>;
 pub type TCResult = Result<(ConcreteTyping, Type), OxidizedError>;
 // FIXME: For now i'll ignore the continuation typing
 type TCFn = dyn FnOnce() -> TCReturnResult;
@@ -21,7 +21,7 @@ type TC3ConsumerFn = dyn FnOnce(ConcreteTyping, Type, Type) -> TCReturnResult;
 // FIXME: DebuggerState should be replaced with this trait and therefore moved into that file. 
 // I think this can be used for both TC and OC. No enums needed. The return types can just be changed 
 // so they're compatible with both TC and OC.
-pub trait TCState: Display {
+pub trait DebuggerState: Display {
     fn step_into(self: Box<Self>) -> TCReturnResult;
 
     fn step_over(self: Box<Self>) -> TCReturnResult;
@@ -81,7 +81,7 @@ pub struct TAssignState {
     method_name: String,
 }
 
-impl TCState for TExprState {
+impl DebuggerState for TExprState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[step_into]]\n{}</red>", self);
@@ -146,7 +146,7 @@ impl TExprState {
     }
 }
 
-impl TCState for TLetrgnState {
+impl DebuggerState for TLetrgnState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[step_into]]\n{}</red>", self);
@@ -223,7 +223,7 @@ impl TLetrgnState {
     }
 }
 
-impl TCState for TSeqState {
+impl DebuggerState for TSeqState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
         if let Some(_) = self.e1_result {
             return self.step_over();
@@ -343,7 +343,7 @@ impl TSeqState {
     }
 }
 
-impl TCState for TAssignState {
+impl DebuggerState for TAssignState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[step_into]]\n{}</red>", self);
@@ -428,7 +428,7 @@ impl TAssignState {
     }
 }
 
-impl TCState for TLetState {
+impl DebuggerState for TLetState {
     fn step_into(mut self: Box<Self>) -> TCReturnResult {
         if let Some(_) = self.e1_result {
             return self.step_over();

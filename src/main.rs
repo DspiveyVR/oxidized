@@ -1,9 +1,8 @@
 use std::println;
 
-use oxidized::static_analysis::{
-    data_structures::ConcreteTyping,
-    tc_state_machine::{TCReturn, TCReturnResult, TCState, TCStateMachine},
-};
+use oxidized::debugging::tc_state::{TCReturn, TCReturnResult, DebuggerState};
+use oxidized::debugging::debugger::Debugger;
+use oxidized::static_analysis::data_structures::ConcreteTyping;
 
 fn main() {
     let program = "
@@ -20,7 +19,7 @@ fn main() {
     println!("{}", ast);
 
     let state = unwrap_state(ast.typecheck(ConcreteTyping::new(), ConcreteTyping::new()));
-    let mut state_machine = TCStateMachine::new(state);
+    let mut state_machine = Debugger::new(state);
 
     let result = state_machine.evaluate();
     match result {
@@ -29,7 +28,7 @@ fn main() {
     }
 }
 
-fn unwrap_state(result: TCReturnResult) -> Box<dyn TCState> {
+fn unwrap_state(result: TCReturnResult) -> Box<dyn DebuggerState> {
     match result {
         Ok(result) => match result.1 {
             TCReturn::TCResult(_) => todo!(),

@@ -1,4 +1,6 @@
 use crate::debugging::tc_state::*;
+use crate::static_analysis::auxiliary::get_unit;
+use crate::static_analysis::data_structures::*;
 use color_print::cprintln;
 use std::println;
 use std::vec;
@@ -7,15 +9,9 @@ pub const DEBUG_OUTPUT: bool = true;
 pub const PRINT_STACK: bool = false;
 
 pub struct Debugger {
-    states: Vec<DebuggerState>,
+    states: Vec<Box<dyn DebuggerState>>,
     si_count: u32,
     so_count: u32,
-}
-
-// FIXME: NO ENUM
-pub enum DebuggerState {
-    TCState(Box<dyn TCState>),
-    // OCState(Box<dyn OCState>)
 }
 
 impl Debugger {
@@ -27,7 +23,7 @@ impl Debugger {
         println!("----------------------");
     }
 
-    fn push_state(&mut self, state: DebuggerState) {
+    fn push_state(&mut self, state: Box<dyn DebuggerState>) {
         self.states.push(state);
         if DEBUG_OUTPUT {
             cprintln!(
@@ -44,7 +40,7 @@ impl Debugger {
         }
     }
 
-    fn pop_state(&mut self) -> Option<DebuggerState> {
+    fn pop_state(&mut self) -> Option<Box<dyn DebuggerState>> {
         let state = self.states.pop();
         if DEBUG_OUTPUT {
             cprintln!(
@@ -66,7 +62,7 @@ impl Debugger {
         state
     }
 
-    pub fn new(state: DebuggerState) -> Self {
+    pub fn new(state: Box<dyn DebuggerState>) -> Self {
         Self {
             states: vec![state],
             si_count: 0,
@@ -205,7 +201,7 @@ impl Debugger {
 
     fn step(
         &mut self,
-        return_result: (Option<DebuggerState>, TCReturn),
+        return_result: (Option<Box<dyn DebuggerState>>, TCReturn),
     ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
         match return_result {
             (_, TCReturn::TCResult(result)) => {

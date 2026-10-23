@@ -204,10 +204,13 @@ impl Debugger {
 
     fn step(
         &mut self,
-        return_result: (Option<Box<dyn DebuggerState>>, TCReturn),
+        step_envelope: StepEnvelope,
     ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
-        match return_result {
-            (_, TCReturn::TCResult(result)) => {
+        match step_envelope {
+            StepEnvelope {
+                result: TCReturn::TCResult(result),
+                ..
+            } => {
                 if let Some(next_top) = self.pop_state() {
                     let mut prev_result = result.clone();
                     let mut handle_result_state = next_top.handle_result(result.clone())?;
@@ -235,7 +238,10 @@ impl Debugger {
                     Ok((Some(result), None))
                 }
             }
-            (last_top, TCReturn::TCState(state)) => {
+            StepEnvelope {
+                yielded_state: last_top,
+                result: TCReturn::TCState(state),
+            } => {
                 if let Some(state) = last_top {
                     self.push_state(state);
                 }

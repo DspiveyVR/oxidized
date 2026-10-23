@@ -4,14 +4,14 @@ use oxidized::testlib::oxide_programs::TestProgram;
 use oxidized::testlib::oxide_programs::check_rust_code;
 use rstest::*;
 
-use oxidized::static_analysis::data_structures::ConcreteTyping;
-use oxidized::debugging::tc_state::*;
 use oxidized::debugging::debugger::*;
+use oxidized::debugging::tc_state::*;
+use oxidized::static_analysis::data_structures::ConcreteTyping;
 use oxidized::testlib::oxide_programs;
 
 fn unwrap_state(result: TCStepResult) -> Box<dyn DebuggerState> {
     match result {
-        Ok(result) => match result.1 {
+        Ok(result) => match result.result {
             TCReturn::TCResult(_) => todo!(),
             TCReturn::TCState(state) => state,
         },

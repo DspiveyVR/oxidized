@@ -12,7 +12,7 @@ pub enum TCReturn {
 // FIXME: Probably will be moved into debugger to be made more generic
 pub struct StepEnvelope {
     pub yielded_state: Option<Box<dyn DebuggerState>>, // Returns ownership to the caller. Functions stored in the state are consumed with .take() so that ownership of the state can be transferred again.
-    pub result: TCReturn, // Result of TC/OC function.
+    pub result: TCReturn,                              // Result of TC/OC function.
 }
 
 pub type TCStepResult = Result<StepEnvelope, OxidizedError>;
@@ -91,7 +91,7 @@ impl DebuggerState for TExprState {
             cprintln!("<yellow>[called]: e_fn()</yellow>");
         }
         let mut e_return = (self.e_fn.take().unwrap())()?;
-        e_return.0 = Some(self);
+        e_return.yielded_state = Some(self);
         Ok(e_return)
     }
 
@@ -138,14 +138,14 @@ impl TExprState {
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
     ) -> TCStepResult {
-        Ok((
-            None,
-            TCReturn::TCState(Box::new(Self {
+        Ok(StepEnvelope {
+            yielded_state: None,
+            result: TCReturn::TCState(Box::new(Self {
                 e_fn: Some(Box::new(e_fn)),
                 env_state,
                 method_name,
             })),
-        ))
+        })
     }
 }
 
@@ -156,7 +156,7 @@ impl DebuggerState for TLetrgnState {
             cprintln!("<yellow>[called]: e_fn()</yellow>");
         }
         let mut e_return = (self.e_fn.take().unwrap())()?;
-        e_return.0 = Some(self);
+        e_return.yielded_state = Some(self);
         Ok(e_return)
     }
 
@@ -187,7 +187,7 @@ impl DebuggerState for TLetrgnState {
             );
         }
         let pop_var_val = (self.pop_vars_fn.take().unwrap())(result)?;
-        Ok(pop_var_val.1)
+        Ok(pop_var_val.result)
     }
 
     fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
@@ -213,16 +213,16 @@ impl TLetrgnState {
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
     ) -> TCStepResult {
-        Ok((
-            None,
-            TCReturn::TCState(Box::new(Self {
+        Ok(StepEnvelope {
+            yielded_state: None,
+            result: TCReturn::TCState(Box::new(Self {
                 e_fn: Some(Box::new(e_fn)),
                 pop_vars_fn: Some(Box::new(pop_vars_fn)),
                 env_state,
                 e_result: None,
                 method_name,
             })),
-        ))
+        })
     }
 }
 
@@ -236,7 +236,7 @@ impl DebuggerState for TSeqState {
             cprintln!("<yellow>[called]: e1_fn()</yellow>");
         }
         let mut e1_result = (self.e1_fn.take().unwrap())()?;
-        e1_result.0 = Some(self);
+        e1_result.yielded_state = Some(self);
         Ok(e1_result)
     }
 
@@ -279,7 +279,7 @@ impl DebuggerState for TSeqState {
                 cprintln!("<yellow>[called]: e2_fn({})</yellow>", result.clone()?.0,);
             }
             let mut e2_return = (self.e2_fn.take().unwrap())(result?.0)?;
-            e2_return.0 = Some(self);
+            e2_return.yielded_state = Some(self);
             Ok(e2_return)
         } else {
             if DEBUG_OUTPUT {
@@ -287,7 +287,10 @@ impl DebuggerState for TSeqState {
             }
             let e1_return = (self.e1_fn.take().unwrap())()?;
             match e1_return {
-                (_, TCReturn::TCResult(result)) => {
+                StepEnvelope {
+                    result: TCReturn::TCResult(result),
+                    ..
+                } => {
                     let e1_result = result;
                     self.e1_result = Some(e1_result.clone());
                     let e1_value = e1_result?;
@@ -295,10 +298,13 @@ impl DebuggerState for TSeqState {
                         cprintln!("<yellow>[called]: e2_fn({})</yellow>", e1_value.clone().0,);
                     }
                     let mut e2_return = (self.e2_fn.take().unwrap())(e1_value.0)?;
-                    e2_return.0 = Some(self);
+                    e2_return.yielded_state = Some(self);
                     Ok(e2_return)
                 }
-                (_, TCReturn::TCState(state)) => {
+                StepEnvelope {
+                    result: TCReturn::TCState(state),
+                    ..
+                } => {
                     let e1_result = state.evaluate();
                     self.e1_result = Some(e1_result.clone());
                     let e1_value = e1_result?;
@@ -307,7 +313,7 @@ impl DebuggerState for TSeqState {
                         cprintln!("<yellow>[called]: e2_fn({})</yellow>", e1_value.clone().0,);
                     }
                     let mut e2_return = (self.e2_fn.take().unwrap())(e1_value.0)?;
-                    e2_return.0 = Some(self);
+                    e2_return.yielded_state = Some(self);
                     Ok(e2_return)
                 }
             }
@@ -333,16 +339,16 @@ impl TSeqState {
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
     ) -> TCStepResult {
-        Ok((
-            None,
-            TCReturn::TCState(Box::new(Self {
+        Ok(StepEnvelope {
+            yielded_state: None,
+            result: TCReturn::TCState(Box::new(Self {
                 e1_fn: Some(Box::new(e1_fn)),
                 e2_fn: Some(Box::new(e2_fn)),
                 env_state,
                 e1_result: None,
                 method_name,
             })),
-        ))
+        })
     }
 }
 
@@ -353,7 +359,7 @@ impl DebuggerState for TAssignState {
             cprintln!("<yellow>[called]: e_fn()</yellow>");
         }
         let mut e_result = (self.e_fn.take().unwrap())()?;
-        e_result.0 = Some(self);
+        e_result.yielded_state = Some(self);
         Ok(e_result)
     }
 
@@ -393,7 +399,7 @@ impl DebuggerState for TAssignState {
             );
         }
         let binding_return_val = (self.binding_fn.take().unwrap())(result_val.0, result_val.1)?;
-        if let TCReturn::TCResult(result) = &binding_return_val.1 {
+        if let TCReturn::TCResult(result) = &binding_return_val.result {
             Ok(TCReturn::TCResult(result.clone()))
         } else {
             panic!("Unexpected match");
@@ -419,15 +425,15 @@ impl TAssignState {
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
     ) -> TCStepResult {
-        Ok((
-            None,
-            TCReturn::TCState(Box::new(Self {
+        Ok(StepEnvelope {
+            yielded_state: None,
+            result: TCReturn::TCState(Box::new(Self {
                 e_fn: Some(Box::new(e_fn)),
                 binding_fn: Some(Box::new(binding_fn)),
                 env_state,
                 method_name,
             })),
-        ))
+        })
     }
 }
 
@@ -441,7 +447,7 @@ impl DebuggerState for TLetState {
             cprintln!("<yellow>[called]: e1_fn()</yellow>");
         }
         let mut e1_result = (self.e1_fn.take().unwrap())()?;
-        e1_result.0 = Some(self);
+        e1_result.yielded_state = Some(self);
         Ok(e1_result)
     }
 
@@ -466,7 +472,7 @@ impl DebuggerState for TLetState {
                 cprintln!("<yellow>[called]: e2_fn({})</yellow>", result.clone()?.0,);
             }
             let mut e2_return = (self.e2_fn.take().unwrap())(result?.0)?;
-            e2_return.0 = Some(self);
+            e2_return.yielded_state = Some(self);
             Ok(e2_return)
         } else {
             if DEBUG_OUTPUT {
@@ -474,7 +480,10 @@ impl DebuggerState for TLetState {
             }
             let e1_return = (self.e1_fn.take().unwrap())()?;
             match e1_return {
-                (_, TCReturn::TCResult(result)) => {
+                StepEnvelope {
+                    result: TCReturn::TCResult(result),
+                    ..
+                } => {
                     self.e1_result = Some(result.clone());
                     let e1_value = result?;
                     if DEBUG_OUTPUT {
@@ -486,7 +495,10 @@ impl DebuggerState for TLetState {
                     }
                     let binding_return = (self.binding_fn.take().unwrap())(e1_value.0, e1_value.1)?;
                     match binding_return {
-                        (_, TCReturn::TCResult(result)) => {
+                        StepEnvelope {
+                            result: TCReturn::TCResult(result),
+                            ..
+                        } => {
                             let binding_value = result?;
                             if DEBUG_OUTPUT {
                                 cprintln!(
@@ -495,15 +507,21 @@ impl DebuggerState for TLetState {
                                 );
                             }
                             let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.0)?;
-                            e2_return.0 = Some(self);
+                            e2_return.yielded_state = Some(self);
                             Ok(e2_return)
                         }
-                        (_, TCReturn::TCState(_)) => {
+                        StepEnvelope {
+                            result: TCReturn::TCState(_),
+                            ..
+                        } => {
                             panic!("Unexpected match");
                         }
                     }
                 }
-                (_, TCReturn::TCState(state)) => {
+                StepEnvelope {
+                    result: TCReturn::TCState(state),
+                    ..
+                } => {
                     let e1_result = state.evaluate();
                     self.e1_result = Some(e1_result.clone());
                     let e1_value = e1_result?;
@@ -516,7 +534,10 @@ impl DebuggerState for TLetState {
                     }
                     let binding_return = (self.binding_fn.take().unwrap())(e1_value.0, e1_value.1)?;
                     match binding_return {
-                        (_, TCReturn::TCResult(result)) => {
+                        StepEnvelope {
+                            result: TCReturn::TCResult(result),
+                            ..
+                        } => {
                             self.binding_result = Some(result.clone());
                             let binding_value = result?;
                             if DEBUG_OUTPUT {
@@ -526,10 +547,13 @@ impl DebuggerState for TLetState {
                                 );
                             }
                             let mut e2_return = (self.e2_fn.take().unwrap())(binding_value.0)?;
-                            e2_return.0 = Some(self);
+                            e2_return.yielded_state = Some(self);
                             Ok(e2_return)
                         }
-                        (_, TCReturn::TCState(_)) => {
+                        StepEnvelope {
+                            result: TCReturn::TCState(_),
+                            ..
+                        } => {
                             panic!("Unexpected match");
                         }
                     }
@@ -566,7 +590,7 @@ impl DebuggerState for TLetState {
             })?;
             let gc_return_val =
                 (self.gc_fn.take().unwrap())(result_val.0, result_val.1, current_bound_type)?;
-            Ok(gc_return_val.1)
+            Ok(gc_return_val.result)
         } else {
             self.e1_result = Some(result.clone());
             let result_val = result?;
@@ -579,7 +603,7 @@ impl DebuggerState for TLetState {
                 );
             }
             let binding_return_val = (self.binding_fn.take().unwrap())(result_val.0, result_val.1)?;
-            if let TCReturn::TCResult(result) = &binding_return_val.1 {
+            if let TCReturn::TCResult(result) = &binding_return_val.result {
                 self.binding_result = Some(result.clone())
             } else {
                 panic!("Unexpected match");
@@ -611,9 +635,9 @@ impl TLetState {
         env_state: (ConcreteTyping, ConcreteTyping),
         method_name: String,
     ) -> TCStepResult {
-        Ok((
-            None,
-            TCReturn::TCState(Box::new(Self {
+        Ok(StepEnvelope {
+            yielded_state: None,
+            result: TCReturn::TCState(Box::new(Self {
                 e1_fn: Some(Box::new(e1_fn)),
                 binding_fn: Some(Box::new(binding_fn)),
                 e2_fn: Some(Box::new(e2_fn)),
@@ -623,6 +647,6 @@ impl TLetState {
                 binding_result: None,
                 method_name,
             })),
-        ))
+        })
     }
 }

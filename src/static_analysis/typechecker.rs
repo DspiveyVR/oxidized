@@ -17,10 +17,10 @@ in the cont typing.  probably can forget about it for now.
 */
 
 use super::data_structures::*;
-use crate::debugging::tc_state::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
+use crate::debugging::tc_state::*;
 use crate::static_analysis::auxiliary::err_if_dead;
 use crate::static_analysis::auxiliary::get_unit;
 
@@ -59,10 +59,10 @@ impl Expression {
                     move || {
                         let stack_typing = st_clone;
 
-                        Ok((
-                            None,
-                            TCReturn::TCResult(Ok((stack_typing, Self::t_constant(&c)?))),
-                        ))
+                        Ok(StepEnvelope {
+                            yielded_state: None,
+                            result: TCReturn::TCResult(Ok((stack_typing, Self::t_constant(&c)?))),
+                        })
                     },
                     (stack_typing, continuation_typing),
                     "t_constant".to_string(),
@@ -102,7 +102,8 @@ impl Expression {
         {
             // FIXME: Something about this logic is wrong. I should be able to copy a value out from under a unique reference
             // but this shrd value for the ownership parameter prevents this, since the uniq references cannot be dereferenced
-            // in a shrd context
+            // in a shrd context. Do I literally just not have to check the ownership if I'm copying? That would make sense, but
+            // do I really want implicit logic like that? Rules seem to allow for copying under references and I need to figure out why.
             if typ.copyable() {
                 let _ = stack_typing.ownership_check(
                     &continuation_typing,
@@ -162,7 +163,10 @@ impl Expression {
                 dead_type.is_dead = Ternary::Yes;
                 stack_typing = stack_typing.set_type(typ, dead_type);
 
-                Ok((None, TCReturn::TCResult(Ok((stack_typing, return_type)))))
+                Ok(StepEnvelope {
+                    yielded_state: None,
+                    result: TCReturn::TCResult(Ok((stack_typing, return_type))),
+                })
             },
             (stack_typing, continuation_typing),
             "t_move".to_string(),
@@ -184,7 +188,10 @@ impl Expression {
                 let mut return_type = typ.clone();
                 return_type.variable = None;
 
-                Ok((None, TCReturn::TCResult(Ok((stack_typing, return_type)))))
+                Ok(StepEnvelope {
+                    yielded_state: None,
+                    result: TCReturn::TCResult(Ok((stack_typing, return_type))),
+                })
             },
             (stack_typing, continuation_typing),
             "t_copy".to_string(),
@@ -240,7 +247,10 @@ impl Expression {
                     region = region.set_loans(loans);
 
                     let test = stack_typing.set_region(ref_annotation.0.to_string(), region);
-                    Ok((None, TCReturn::TCResult(Ok((test, ref_type)))))
+                    Ok(StepEnvelope {
+                        yielded_state: None,
+                        result: TCReturn::TCResult(Ok((test, ref_type))),
+                    })
                 } else {
                     panic!("Unexpected error");
                 }
@@ -303,10 +313,10 @@ impl Expression {
                     }
                 }
 
-                Ok((
-                    None,
-                    TCReturn::TCResult(Ok((new_stack_typing, return_type))),
-                ))
+                Ok(StepEnvelope {
+                    yielded_state: None,
+                    result: TCReturn::TCResult(Ok((new_stack_typing, return_type))),
+                })
             },
             (stack_typing.clone(), continuation_typing.clone()),
             "t_letrgn".to_string(),
@@ -373,13 +383,13 @@ impl Expression {
                     let mut bound_type = return_type.clone();
                     bound_type.variable = place_type.clone().variable;
 
-                    Ok((
-                        None,
-                        TCReturn::TCResult(Ok((
+                    Ok(StepEnvelope {
+                        yielded_state: None,
+                        result: TCReturn::TCResult(Ok((
                             gamma1_prime.set_type(place_type.clone(), bound_type),
                             get_unit(),
                         ))),
-                    ))
+                    })
                 },
                 (stack_typing.clone(), continuation_typing.clone()),
                 "t_assign".to_string(),
@@ -462,7 +472,10 @@ impl Expression {
                         RegionRewriteMode::Plus,
                     )?;
 
-                    Ok((None, TCReturn::TCResult(Ok((gamma1_modified, bound_type)))))
+                    Ok(StepEnvelope {
+                        yielded_state: None,
+                        result: TCReturn::TCResult(Ok((gamma1_modified, bound_type))),
+                    })
                 },
                 |gamma1_modified: ConcreteTyping| {
                     e2.typecheck(gamma1_modified.gc_loans(ct_clone2.clone()), ct_clone2)
@@ -471,13 +484,13 @@ impl Expression {
                     let mut dead_bound_type = bound_type.clone();
                     dead_bound_type.is_dead = Ternary::Yes;
 
-                    Ok((
-                        None,
-                        TCReturn::TCResult(Ok((
+                    Ok(StepEnvelope {
+                        yielded_state: None,
+                        result: TCReturn::TCResult(Ok((
                             gamma2.set_type(bound_type, dead_bound_type),
                             return_type2,
                         ))),
-                    ))
+                    })
                 },
                 (stack_typing.clone(), continuation_typing.clone()),
                 "t_let".to_string(),

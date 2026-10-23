@@ -285,7 +285,7 @@ impl Expression {
                     panic!("Unexpected error");
                 }
             },
-            move |result: TCResult| {
+            move |result: TCFnResult| {
                 let stack_typing = st_clone2;
                 let result = result?;
                 let env = result.0;

@@ -9,11 +9,11 @@ use oxidized::debugging::tc_state::*;
 use oxidized::static_analysis::data_structures::ConcreteTyping;
 use oxidized::testlib::oxide_programs;
 
-fn unwrap_state(result: TCStepResult) -> Box<dyn DebuggerState> {
+fn unwrap_state(result: StepResult) -> Box<dyn DebuggerState> {
     match result {
         Ok(result) => match result.result {
-            TCReturn::TCResult(_) => todo!(),
-            TCReturn::TCState(state) => state,
+            FnReturn::FnResult(_) => todo!(),
+            FnReturn::DebuggerState(state) => state,
         },
         Err(_) => todo!(),
     }

@@ -4,15 +4,62 @@
         after calling one of these functions. self is returned by the step functions in order to transfer ownership back to the caller.
 */
 
+use crate::debugging::oc_state::OCResult;
+use crate::debugging::oc_state::OSafePlaceArgs;
 use crate::debugging::tc_state::*;
 use crate::static_analysis::auxiliary::get_unit;
 use crate::static_analysis::data_structures::*;
 use color_print::cprintln;
+use std::fmt::Display;
 use std::println;
 use std::vec;
 
 pub const DEBUG_OUTPUT: bool = true;
 pub const PRINT_STACK: bool = false;
+
+#[derive(Clone)]
+pub enum FnResult {
+    TCResult(TCFnResult),
+    OCResult(OCResult),
+}
+
+pub enum FnReturn {
+    FnResult(FnResult),
+    DebuggerState(Box<dyn DebuggerState>),
+}
+
+pub struct StepEnvelope {
+    pub yielded_state: Option<Box<dyn DebuggerState>>, // Returns ownership to the caller. Functions stored in the state are consumed with .take() so that ownership of the state can be transferred again.
+    pub result: FnReturn,                              // Result of TC/OC function.
+}
+
+pub type StepResult = Result<StepEnvelope, OxidizedError>;
+
+#[derive(Clone)]
+pub enum StateArgs {
+    OSafePlaceArgs(OSafePlaceArgs),
+    TCEnvState(TCEnvState),
+}
+
+pub trait DebuggerState: Display {
+    fn step_into(self: Box<Self>) -> StepResult;
+
+    fn step_over(self: Box<Self>) -> StepResult;
+
+    fn evaluate(self: Box<Self>) -> FnResult;
+
+    // If a step method on a state returns a result, the state machine will call this method on the next
+    // state on the stack so it can assign its result properties and/or call other functions like gc_fn.
+    // NOTE: Results passed in here seem to consistently have unit return types so i'm not sure if the return types could
+    // be incorrect coming from some typing rules or if they aren't passed through states properly. May be a non issue.
+    fn handle_result(self: Box<Self>, result: FnResult) -> Result<FnReturn, OxidizedError>;
+
+    fn get_state_args(&self) -> StateArgs;
+
+    fn get_state_name(&self) -> String;
+
+    fn get_method_name(&self) -> String;
+}
 
 pub struct Debugger {
     states: Vec<Box<dyn DebuggerState>>,
@@ -76,7 +123,7 @@ impl Debugger {
         }
     }
 
-    pub fn evaluate(&mut self) -> TCResult {
+    pub fn evaluate(&mut self) -> FnResult {
         if DEBUG_OUTPUT {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
@@ -107,7 +154,7 @@ impl Debugger {
         panic!("failed to evaluate");
     }
 
-    pub fn deep_evaluate(&mut self) -> Vec<(TCResult, String)> {
+    pub fn deep_evaluate(&mut self) -> Vec<(FnResult, String)> {
         if DEBUG_OUTPUT {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
@@ -133,7 +180,7 @@ impl Debugger {
                 }
                 _ => {
                     if let Some(state) = self.states.last() {
-                        let env_state = state.get_env_state();
+                        let env_state = state.get_state_args();
                         results.push((Ok((env_state.0, get_unit())), state.get_method_name()));
                     }
                 }
@@ -146,7 +193,7 @@ impl Debugger {
     // I wanted to be able to return the final and previous values in the eval method but that only works at the last step.
     // Since this method is called recursively by the other tc_state methods, returning the previous result multiple times
     // in this recursive loop leads to incorrect outputs.
-    pub fn _evaluate(&mut self) -> TCResult {
+    pub fn _evaluate(&mut self) -> FnResult {
         if DEBUG_OUTPUT {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
@@ -172,13 +219,13 @@ impl Debugger {
 
     pub fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         if let Some(state) = self.states.last() {
-            state.get_env_state()
+            state.get_state_args()
         } else {
             (ConcreteTyping::new(), ConcreteTyping::new())
         }
     }
 
-    pub fn step_into(&mut self) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
+    pub fn step_into(&mut self) -> Result<(Option<FnResult>, Option<FnResult>), OxidizedError> {
         self.si_count += 1;
         if DEBUG_OUTPUT {
             cprintln!("<cyan>STATE_MACHINE step_into #{}</cyan>", self.si_count);
@@ -190,7 +237,7 @@ impl Debugger {
         self.step(return_result)
     }
 
-    pub fn step_over(&mut self) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
+    pub fn step_over(&mut self) -> Result<(Option<FnResult>, Option<FnResult>), OxidizedError> {
         self.so_count += 1;
         if DEBUG_OUTPUT {
             cprintln!("<cyan>STATE_MACHINE step_over #{}</cyan>", self.so_count);
@@ -205,10 +252,10 @@ impl Debugger {
     fn step(
         &mut self,
         step_envelope: StepEnvelope,
-    ) -> Result<(Option<TCResult>, Option<TCResult>), OxidizedError> {
+    ) -> Result<(Option<FnResult>, Option<FnResult>), OxidizedError> {
         match step_envelope {
             StepEnvelope {
-                result: TCReturn::TCResult(result),
+                result: FnReturn::FnResult(result),
                 ..
             } => {
                 if let Some(next_top) = self.pop_state() {
@@ -218,11 +265,11 @@ impl Debugger {
                     // Passes the results of evaluation to their parent expressions.
                     loop {
                         match handle_result_state {
-                            TCReturn::TCState(state) => {
+                            FnReturn::DebuggerState(state) => {
                                 self.push_state(state);
                                 break Ok((None, None));
                             }
-                            TCReturn::TCResult(next_result) => {
+                            FnReturn::FnResult(next_result) => {
                                 if self.states.len() > 0 {
                                     let next_top = self.pop_state().unwrap();
                                     prev_result = next_result.clone();
@@ -240,7 +287,7 @@ impl Debugger {
             }
             StepEnvelope {
                 yielded_state: last_top,
-                result: TCReturn::TCState(state),
+                result: FnReturn::DebuggerState(state),
             } => {
                 if let Some(state) = last_top {
                     self.push_state(state);

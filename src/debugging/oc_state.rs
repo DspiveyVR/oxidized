@@ -29,7 +29,7 @@ pub struct OCFnReturn {
 }
 
 #[derive(Clone)]
-pub struct OSafePlaceArgs {
+pub struct OSafePlaceStateCapture {
     stack_typing: ConcreteTyping,
     continuation_typing: ConcreteTyping,
     place: Place,
@@ -41,6 +41,6 @@ type OC0ParamFn = dyn FnOnce() -> StepResult;
 
 pub struct OSafePlaceState {
     check_fn: Option<Box<OC0ParamFn>>,
-    args: OSafePlaceArgs,
+    state_capture: OSafePlaceStateCapture,
     method_name: String,
 }

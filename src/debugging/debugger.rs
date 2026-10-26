@@ -5,7 +5,7 @@
 */
 
 use crate::debugging::oc_state::OCResult;
-use crate::debugging::oc_state::OSafePlaceArgs;
+use crate::debugging::oc_state::OSafePlaceStateCapture;
 use crate::debugging::tc_state::*;
 use crate::static_analysis::auxiliary::get_unit;
 use crate::static_analysis::data_structures::*;
@@ -18,10 +18,12 @@ pub const DEBUG_OUTPUT: bool = true;
 pub const PRINT_STACK: bool = false;
 
 #[derive(Clone)]
-pub enum FnResult {
+pub enum FnEnvelope {
     TCResult(TCFnResult),
     OCResult(OCResult),
 }
+
+pub type FnResult = Result<FnEnvelope, OxidizedError>;
 
 pub enum FnReturn {
     FnResult(FnResult),
@@ -36,9 +38,9 @@ pub struct StepEnvelope {
 pub type StepResult = Result<StepEnvelope, OxidizedError>;
 
 #[derive(Clone)]
-pub enum StateArgs {
-    OSafePlaceArgs(OSafePlaceArgs),
-    TCEnvState(TCEnvState),
+pub enum StateCapture {
+    OSafePlaceStateCapture(OSafePlaceStateCapture),
+    TCEnvStateCapture(TCEnvStateCapture),
 }
 
 pub trait DebuggerState: Display {
@@ -46,15 +48,15 @@ pub trait DebuggerState: Display {
 
     fn step_over(self: Box<Self>) -> StepResult;
 
-    fn evaluate(self: Box<Self>) -> FnResult;
+    fn evaluate(self: Box<Self>) -> FnEnvelope;
 
     // If a step method on a state returns a result, the state machine will call this method on the next
     // state on the stack so it can assign its result properties and/or call other functions like gc_fn.
     // NOTE: Results passed in here seem to consistently have unit return types so i'm not sure if the return types could
     // be incorrect coming from some typing rules or if they aren't passed through states properly. May be a non issue.
-    fn handle_result(self: Box<Self>, result: FnResult) -> Result<FnReturn, OxidizedError>;
+    fn handle_result(self: Box<Self>, result: FnEnvelope) -> Result<FnReturn, OxidizedError>;
 
-    fn get_state_args(&self) -> StateArgs;
+    fn get_state_capture(&self) -> StateCapture;
 
     fn get_state_name(&self) -> String;
 
@@ -133,14 +135,19 @@ impl Debugger {
                     if DEBUG_OUTPUT {
                         cprintln!("<cyan>Eval End</cyan>");
                     }
-                    println!("[[final_result]]:\n{}\n[[prev_result]]:", final_result?.0);
-                    return prev_result;
+                    match final_result {
+                        FnEnvelope::TCResult(final_result) => {
+                            println!("[[final_result]]:\n{}\n[[prev_result]]:", final_result?.0);
+                        }
+                        FnEnvelope::OCResult(ocfn_return) => todo!(),
+                    }
+                    return Ok(prev_result);
                 }
                 Ok((Some(final_result), None)) => {
                     if DEBUG_OUTPUT {
                         cprintln!("<cyan>Eval End</cyan>");
                     }
-                    return final_result;
+                    return Ok(final_result);
                 }
                 Err(err) => {
                     if DEBUG_OUTPUT {
@@ -158,7 +165,7 @@ impl Debugger {
         if DEBUG_OUTPUT {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
-        let mut results = Vec::new();
+        let mut results: Vec<(FnResult, String)> = Vec::new();
 
         while !self.states.is_empty() {
             match self.step_into() {
@@ -167,8 +174,8 @@ impl Debugger {
                         cprintln!("<cyan>Eval End</cyan>");
                     }
 
-                    results.push((prev_result, "PREV".to_string()));
-                    results.push((final_result, "END".to_string()));
+                    results.push((Ok(prev_result), "PREV".to_string()));
+                    results.push((Ok(final_result), "END".to_string()));
                     break;
                 }
                 Err(err) => {
@@ -180,8 +187,21 @@ impl Debugger {
                 }
                 _ => {
                     if let Some(state) = self.states.last() {
-                        let env_state = state.get_state_args();
-                        results.push((Ok((env_state.0, get_unit())), state.get_method_name()));
+                        let env_state = state.get_state_capture();
+                        match env_state {
+                            StateCapture::TCEnvStateCapture(env_state) => {
+                                results.push((
+                                    Ok(FnEnvelope::TCResult(Ok((
+                                        env_state.stack_typing,
+                                        get_unit(),
+                                    )))),
+                                    state.get_method_name(),
+                                ));
+                            }
+                            StateCapture::OSafePlaceStateCapture(osafe_place_state_capture) => {
+                                todo!()
+                            }
+                        }
                     }
                 }
             }
@@ -203,7 +223,8 @@ impl Debugger {
                     if DEBUG_OUTPUT {
                         cprintln!("<cyan>Eval End</cyan>");
                     }
-                    return final_result;
+                    // NOTE: Could this lead to bugs? if there's an Err it will be wrapped in an Ok so it might get lost.
+                    return Ok(final_result);
                 }
                 Err(err) => {
                     if DEBUG_OUTPUT {
@@ -219,13 +240,19 @@ impl Debugger {
 
     pub fn get_env_state(&self) -> (ConcreteTyping, ConcreteTyping) {
         if let Some(state) = self.states.last() {
-            state.get_state_args()
+            match state.get_state_capture() {
+                StateCapture::TCEnvStateCapture(state_capture) => (
+                    state_capture.stack_typing,
+                    state_capture.continuation_typing,
+                ),
+                StateCapture::OSafePlaceStateCapture(osafe_place_state_capture) => todo!(),
+            }
         } else {
             (ConcreteTyping::new(), ConcreteTyping::new())
         }
     }
 
-    pub fn step_into(&mut self) -> Result<(Option<FnResult>, Option<FnResult>), OxidizedError> {
+    pub fn step_into(&mut self) -> Result<(Option<FnEnvelope>, Option<FnEnvelope>), OxidizedError> {
         self.si_count += 1;
         if DEBUG_OUTPUT {
             cprintln!("<cyan>STATE_MACHINE step_into #{}</cyan>", self.si_count);
@@ -237,7 +264,7 @@ impl Debugger {
         self.step(return_result)
     }
 
-    pub fn step_over(&mut self) -> Result<(Option<FnResult>, Option<FnResult>), OxidizedError> {
+    pub fn step_over(&mut self) -> Result<(Option<FnEnvelope>, Option<FnEnvelope>), OxidizedError> {
         self.so_count += 1;
         if DEBUG_OUTPUT {
             cprintln!("<cyan>STATE_MACHINE step_over #{}</cyan>", self.so_count);
@@ -252,7 +279,7 @@ impl Debugger {
     fn step(
         &mut self,
         step_envelope: StepEnvelope,
-    ) -> Result<(Option<FnResult>, Option<FnResult>), OxidizedError> {
+    ) -> Result<(Option<FnEnvelope>, Option<FnEnvelope>), OxidizedError> {
         match step_envelope {
             StepEnvelope {
                 result: FnReturn::FnResult(result),

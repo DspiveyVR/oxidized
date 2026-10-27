@@ -1,4 +1,3 @@
-
 // // pub struct ODerefState {
 // //     check_fn: Option<Box<TCFn>>,
 // //     env_state: (ConcreteTyping, ConcreteTyping),
@@ -15,17 +14,19 @@
 //         reborrow_exclusion_list: &VecSet<Place>,
 //     ) -> Result<VecSet<Loan>, OxidizedError> {
 
-
 // */
-
-use crate::{ast::OwnershipQualifier, debugging::debugger::StepResult, static_analysis::data_structures::{ConcreteTyping, Loan, OxidizedError, Place, VecSet}};
+use crate::{
+    ast::OwnershipQualifier,
+    debugging::debugger::StepResult,
+    static_analysis::data_structures::{ConcreteTyping, Loan, OxidizedError, Place, VecSet},
+};
 
 pub type OCResult = Result<OCFnReturn, OxidizedError>;
 
 #[derive(Clone)]
 pub struct OCFnReturn {
     loans: VecSet<Loan>,
-    reborrow_exclusion_list: VecSet<Place>
+    reborrow_exclusion_list: VecSet<Place>,
 }
 
 #[derive(Clone)]
@@ -34,7 +35,7 @@ pub struct OSafePlaceStateCapture {
     continuation_typing: ConcreteTyping,
     place: Place,
     ownership_qualifier: OwnershipQualifier,
-    reborrow_exclusion_list: VecSet<Place>
+    reborrow_exclusion_list: VecSet<Place>,
 }
 
 type OC0ParamFn = dyn FnOnce() -> StepResult;

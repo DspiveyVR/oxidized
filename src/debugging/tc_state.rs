@@ -82,7 +82,7 @@ impl DebuggerState for TExprState {
         self.step_into()
     }
 
-    fn evaluate(self: Box<Self>) -> FnEnvelope {
+    fn evaluate(self: Box<Self>) -> FnResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
@@ -652,7 +652,7 @@ impl DebuggerState for TLetState {
                         match result {
                             FnEnvelope::TCResult(result) => {
                                 self.binding_result = Some(result.clone())
-                            },
+                            }
                             FnEnvelope::OCResult(ocfn_return) => todo!(),
                         }
                     } else {

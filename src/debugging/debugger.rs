@@ -48,7 +48,7 @@ pub trait DebuggerState: Display {
 
     fn step_over(self: Box<Self>) -> StepResult;
 
-    fn evaluate(self: Box<Self>) -> FnEnvelope;
+    fn evaluate(self: Box<Self>) -> FnResult;
 
     // If a step method on a state returns a result, the state machine will call this method on the next
     // state on the stack so it can assign its result properties and/or call other functions like gc_fn.
@@ -287,7 +287,7 @@ impl Debugger {
             } => {
                 if let Some(next_top) = self.pop_state() {
                     let mut prev_result = result.clone();
-                    let mut handle_result_state = next_top.handle_result(result.clone())?;
+                    let mut handle_result_state = next_top.handle_result(result.clone()?)?;
 
                     // Passes the results of evaluation to their parent expressions.
                     loop {
@@ -301,15 +301,15 @@ impl Debugger {
                                     let next_top = self.pop_state().unwrap();
                                     prev_result = next_result.clone();
                                     handle_result_state =
-                                        next_top.handle_result(next_result.clone())?;
+                                        next_top.handle_result(next_result.clone()?)?;
                                 } else {
-                                    break Ok((Some(next_result), Some(prev_result)));
+                                    break Ok((Some(next_result?), Some(prev_result?)));
                                 }
                             }
                         }
                     }
                 } else {
-                    Ok((Some(result), None))
+                    Ok((Some(result?), None))
                 }
             }
             StepEnvelope {

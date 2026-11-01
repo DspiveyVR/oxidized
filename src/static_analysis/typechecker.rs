@@ -20,6 +20,10 @@ use super::data_structures::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
+use crate::debugging::debugger::FnEnvelope;
+use crate::debugging::debugger::FnReturn;
+use crate::debugging::debugger::StepEnvelope;
+use crate::debugging::debugger::StepResult;
 use crate::debugging::tc_state::*;
 use crate::static_analysis::auxiliary::err_if_dead;
 use crate::static_analysis::auxiliary::get_unit;
@@ -29,7 +33,7 @@ impl Expression {
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCStepResult {
+    ) -> StepResult {
         match self {
             Expression::Letrgn(..) => self.t_letrgn(stack_typing, continuation_typing),
             Expression::Sequence(..) => self.t_seq(stack_typing, continuation_typing),
@@ -61,7 +65,7 @@ impl Expression {
 
                         Ok(StepEnvelope {
                             yielded_state: None,
-                            result: TCReturn::TCResult(Ok((stack_typing, Self::t_constant(&c)?))),
+                            result: FnReturn::FnResult(FnEnvelope::TCResult(Ok((stack_typing, Self::t_constant(&c)?)))), // FIXME: ok no these types are just no this needs to be fixed.
                         })
                     },
                     (stack_typing, continuation_typing),

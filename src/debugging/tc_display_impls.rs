@@ -1,4 +1,5 @@
 use crate::debugging::tc_state::*;
+use crate::debugging::debugger::*;
 use std::fmt::Display;
 
 impl Display for TExprState {

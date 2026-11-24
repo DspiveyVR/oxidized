@@ -23,16 +23,26 @@ pub enum FnEnvelope {
     OCResult(OCResult),
 }
 
-pub type FnResult = Result<FnEnvelope, OxidizedError>;
+pub type GenericFnResult = Result<FnEnvelope, OxidizedError>;
 
-pub enum FnReturn {
-    FnResult(FnResult),
+pub enum EvalReturn {
+    FnResult(GenericFnResult),
     DebuggerState(Box<dyn DebuggerState>),
+}
+
+impl EvalReturn {
+    pub fn new_fn_result(stack_typing: ConcreteTyping, typ: Type) -> Self {
+        EvalReturn::FnResult(Ok(FnEnvelope::TCResult(Ok((stack_typing, typ)))))
+    }
+
+    // pub fn new_debugger_state(state: Box<dyn DebuggerState>) {
+    //     EvalReturn::DebuggerState(state)
+    // }
 }
 
 pub struct StepEnvelope {
     pub yielded_state: Option<Box<dyn DebuggerState>>, // Returns ownership to the caller. Functions stored in the state are consumed with .take() so that ownership of the state can be transferred again.
-    pub result: FnReturn,                              // Result of TC/OC function.
+    pub return_val: EvalReturn,                        // Result of TC/OC function.
 }
 
 pub type StepResult = Result<StepEnvelope, OxidizedError>;
@@ -48,13 +58,13 @@ pub trait DebuggerState: Display {
 
     fn step_over(self: Box<Self>) -> StepResult;
 
-    fn evaluate(self: Box<Self>) -> FnResult;
+    fn evaluate(self: Box<Self>) -> GenericFnResult;
 
     // If a step method on a state returns a result, the state machine will call this method on the next
     // state on the stack so it can assign its result properties and/or call other functions like gc_fn.
     // NOTE: Results passed in here seem to consistently have unit return types so i'm not sure if the return types could
     // be incorrect coming from some typing rules or if they aren't passed through states properly. May be a non issue.
-    fn handle_result(self: Box<Self>, result: FnEnvelope) -> Result<FnReturn, OxidizedError>;
+    fn handle_result(self: Box<Self>, result: FnEnvelope) -> Result<EvalReturn, OxidizedError>;
 
     fn get_state_capture(&self) -> StateCapture;
 
@@ -125,7 +135,7 @@ impl Debugger {
         }
     }
 
-    pub fn evaluate(&mut self) -> FnResult {
+    pub fn evaluate(&mut self) -> GenericFnResult {
         if DEBUG_OUTPUT {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
@@ -161,11 +171,11 @@ impl Debugger {
         panic!("failed to evaluate");
     }
 
-    pub fn deep_evaluate(&mut self) -> Vec<(FnResult, String)> {
+    pub fn deep_evaluate(&mut self) -> Vec<(GenericFnResult, String)> {
         if DEBUG_OUTPUT {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
-        let mut results: Vec<(FnResult, String)> = Vec::new();
+        let mut results: Vec<(GenericFnResult, String)> = Vec::new();
 
         while !self.states.is_empty() {
             match self.step_into() {
@@ -213,7 +223,7 @@ impl Debugger {
     // I wanted to be able to return the final and previous values in the eval method but that only works at the last step.
     // Since this method is called recursively by the other tc_state methods, returning the previous result multiple times
     // in this recursive loop leads to incorrect outputs.
-    pub fn _evaluate(&mut self) -> FnResult {
+    pub fn _evaluate(&mut self) -> GenericFnResult {
         if DEBUG_OUTPUT {
             cprintln!("<cyan>Eval Begin</cyan>");
         }
@@ -282,7 +292,7 @@ impl Debugger {
     ) -> Result<(Option<FnEnvelope>, Option<FnEnvelope>), OxidizedError> {
         match step_envelope {
             StepEnvelope {
-                result: FnReturn::FnResult(result),
+                return_val: EvalReturn::FnResult(result),
                 ..
             } => {
                 if let Some(next_top) = self.pop_state() {
@@ -292,11 +302,11 @@ impl Debugger {
                     // Passes the results of evaluation to their parent expressions.
                     loop {
                         match handle_result_state {
-                            FnReturn::DebuggerState(state) => {
+                            EvalReturn::DebuggerState(state) => {
                                 self.push_state(state);
                                 break Ok((None, None));
                             }
-                            FnReturn::FnResult(next_result) => {
+                            EvalReturn::FnResult(next_result) => {
                                 if self.states.len() > 0 {
                                     let next_top = self.pop_state().unwrap();
                                     prev_result = next_result.clone();
@@ -314,7 +324,7 @@ impl Debugger {
             }
             StepEnvelope {
                 yielded_state: last_top,
-                result: FnReturn::DebuggerState(state),
+                return_val: EvalReturn::DebuggerState(state),
             } => {
                 if let Some(state) = last_top {
                     self.push_state(state);

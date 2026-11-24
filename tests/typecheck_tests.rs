@@ -5,15 +5,14 @@ use oxidized::testlib::oxide_programs::check_rust_code;
 use rstest::*;
 
 use oxidized::debugging::debugger::*;
-use oxidized::debugging::tc_state::*;
 use oxidized::static_analysis::data_structures::ConcreteTyping;
 use oxidized::testlib::oxide_programs;
 
 fn unwrap_state(result: StepResult) -> Box<dyn DebuggerState> {
     match result {
-        Ok(result) => match result.result {
-            FnReturn::FnResult(_) => todo!(),
-            FnReturn::DebuggerState(state) => state,
+        Ok(result) => match result.return_val {
+            EvalReturn::FnResult(_) => todo!(),
+            EvalReturn::DebuggerState(state) => state,
         },
         Err(_) => todo!(),
     }
@@ -84,7 +83,13 @@ fn full_program(#[case] program: TestProgram, #[case] n: u32) {
                         i + 1,
                         r.1,
                         match &r.0 {
-                            Ok(val) => format!("{}", val.0),
+                            Ok(val) => format!("{}", match val {
+                                FnEnvelope::TCResult(res) => match res {
+                                    Ok(val) => format!("{}", val.0),
+                                    Err(err) => format!("{}", err),
+                                },
+                                FnEnvelope::OCResult(ocfn_return) => todo!(),
+                            }),
                             Err(err) => format!("{}", err),
                         }
                     )

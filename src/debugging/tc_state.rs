@@ -82,7 +82,7 @@ impl DebuggerState for TExprState {
         self.step_into()
     }
 
-    fn evaluate(self: Box<Self>) -> FnResult {
+    fn evaluate(self: Box<Self>) -> GenericFnResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
@@ -90,7 +90,7 @@ impl DebuggerState for TExprState {
         debugger._evaluate()
     }
 
-    fn handle_result(self: Box<Self>, result: FnEnvelope) -> Result<FnReturn, OxidizedError> {
+    fn handle_result(self: Box<Self>, result: FnEnvelope) -> Result<EvalReturn, OxidizedError> {
         match result {
             FnEnvelope::TCResult(result) => {
                 if DEBUG_OUTPUT {
@@ -102,7 +102,7 @@ impl DebuggerState for TExprState {
                     );
                 }
 
-                Ok(FnReturn::FnResult(Ok(FnEnvelope::TCResult(result))))
+                Ok(EvalReturn::FnResult(Ok(FnEnvelope::TCResult(result))))
             }
             FnEnvelope::OCResult(ocfn_return) => todo!(),
         }
@@ -129,7 +129,7 @@ impl TExprState {
     ) -> StepResult {
         Ok(StepEnvelope {
             yielded_state: None,
-            result: FnReturn::DebuggerState(Box::new(Self {
+            return_val: EvalReturn::DebuggerState(Box::new(Self {
                 e_fn: Some(Box::new(e_fn)),
                 env_state,
                 method_name,
@@ -153,7 +153,7 @@ impl DebuggerState for TLetrgnState {
         self.step_into()
     }
 
-    fn evaluate(self: Box<Self>) -> FnResult {
+    fn evaluate(self: Box<Self>) -> GenericFnResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
@@ -161,7 +161,7 @@ impl DebuggerState for TLetrgnState {
         debugger._evaluate()
     }
 
-    fn handle_result(mut self: Box<Self>, result: FnEnvelope) -> Result<FnReturn, OxidizedError> {
+    fn handle_result(mut self: Box<Self>, result: FnEnvelope) -> Result<EvalReturn, OxidizedError> {
         match result {
             FnEnvelope::TCResult(result) => {
                 if DEBUG_OUTPUT {
@@ -178,7 +178,7 @@ impl DebuggerState for TLetrgnState {
                     );
                 }
                 let pop_var_val = (self.pop_vars_fn.take().unwrap())(result)?;
-                Ok(pop_var_val.result)
+                Ok(pop_var_val.return_val)
             }
             FnEnvelope::OCResult(ocfn_return) => todo!(),
         }
@@ -209,7 +209,7 @@ impl TLetrgnState {
     ) -> StepResult {
         Ok(StepEnvelope {
             yielded_state: None,
-            result: FnReturn::DebuggerState(Box::new(Self {
+            return_val: EvalReturn::DebuggerState(Box::new(Self {
                 e_fn: Some(Box::new(e_fn)),
                 pop_vars_fn: Some(Box::new(pop_vars_fn)),
                 env_state,
@@ -234,7 +234,7 @@ impl DebuggerState for TSeqState {
         Ok(e1_result)
     }
 
-    fn evaluate(self: Box<Self>) -> FnResult {
+    fn evaluate(self: Box<Self>) -> GenericFnResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
@@ -242,7 +242,7 @@ impl DebuggerState for TSeqState {
         debugger._evaluate()
     }
 
-    fn handle_result(mut self: Box<Self>, result: FnEnvelope) -> Result<FnReturn, OxidizedError> {
+    fn handle_result(mut self: Box<Self>, result: FnEnvelope) -> Result<EvalReturn, OxidizedError> {
         match result {
             FnEnvelope::TCResult(result) => {
                 if DEBUG_OUTPUT {
@@ -256,9 +256,9 @@ impl DebuggerState for TSeqState {
 
                 if let None = self.e1_result {
                     self.e1_result = Some(result.clone());
-                    Ok(FnReturn::DebuggerState(self))
+                    Ok(EvalReturn::DebuggerState(self))
                 } else {
-                    Ok(FnReturn::FnResult(Ok(FnEnvelope::TCResult(result))))
+                    Ok(EvalReturn::FnResult(Ok(FnEnvelope::TCResult(result))))
                 }
             }
             FnEnvelope::OCResult(ocfn_return) => todo!(),
@@ -287,7 +287,7 @@ impl DebuggerState for TSeqState {
             let e1_return = (self.e1_fn.take().unwrap())()?;
             match e1_return {
                 StepEnvelope {
-                    result: FnReturn::FnResult(result),
+                    return_val: EvalReturn::FnResult(result),
                     ..
                 } => {
                     let e1_result = result?;
@@ -309,7 +309,7 @@ impl DebuggerState for TSeqState {
                     }
                 }
                 StepEnvelope {
-                    result: FnReturn::DebuggerState(state),
+                    return_val: EvalReturn::DebuggerState(state),
                     ..
                 } => {
                     let e1_result = state.evaluate()?;
@@ -356,7 +356,7 @@ impl TSeqState {
     ) -> StepResult {
         Ok(StepEnvelope {
             yielded_state: None,
-            result: FnReturn::DebuggerState(Box::new(Self {
+            return_val: EvalReturn::DebuggerState(Box::new(Self {
                 e1_fn: Some(Box::new(e1_fn)),
                 e2_fn: Some(Box::new(e2_fn)),
                 env_state,
@@ -382,7 +382,7 @@ impl DebuggerState for TAssignState {
         self.step_into()
     }
 
-    fn evaluate(self: Box<Self>) -> FnResult {
+    fn evaluate(self: Box<Self>) -> GenericFnResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
@@ -394,7 +394,7 @@ impl DebuggerState for TAssignState {
         StateCapture::TCEnvStateCapture(self.env_state.clone())
     }
 
-    fn handle_result(mut self: Box<Self>, result: FnEnvelope) -> Result<FnReturn, OxidizedError> {
+    fn handle_result(mut self: Box<Self>, result: FnEnvelope) -> Result<EvalReturn, OxidizedError> {
         match result {
             FnEnvelope::TCResult(result) => {
                 if DEBUG_OUTPUT {
@@ -417,8 +417,8 @@ impl DebuggerState for TAssignState {
                 }
                 let binding_return_val =
                     (self.binding_fn.take().unwrap())(result_val.0, result_val.1)?;
-                if let FnReturn::FnResult(result) = &binding_return_val.result {
-                    Ok(FnReturn::FnResult(result.clone()))
+                if let EvalReturn::FnResult(result) = &binding_return_val.return_val {
+                    Ok(EvalReturn::FnResult(result.clone()))
                 } else {
                     panic!("Unexpected match");
                 }
@@ -448,7 +448,7 @@ impl TAssignState {
     ) -> StepResult {
         Ok(StepEnvelope {
             yielded_state: None,
-            result: FnReturn::DebuggerState(Box::new(Self {
+            return_val: EvalReturn::DebuggerState(Box::new(Self {
                 e_fn: Some(Box::new(e_fn)),
                 binding_fn: Some(Box::new(binding_fn)),
                 env_state,
@@ -472,7 +472,7 @@ impl DebuggerState for TLetState {
         Ok(e1_result)
     }
 
-    fn evaluate(self: Box<Self>) -> FnResult {
+    fn evaluate(self: Box<Self>) -> GenericFnResult {
         if DEBUG_OUTPUT {
             cprintln!("<red>[[evaluate]]\n{}</red>", self);
         }
@@ -502,7 +502,7 @@ impl DebuggerState for TLetState {
             let e1_return = (self.e1_fn.take().unwrap())()?;
             match e1_return {
                 StepEnvelope {
-                    result: FnReturn::FnResult(result),
+                    return_val: EvalReturn::FnResult(result),
                     ..
                 } => match result? {
                     FnEnvelope::TCResult(result) => {
@@ -519,7 +519,7 @@ impl DebuggerState for TLetState {
                             (self.binding_fn.take().unwrap())(e1_value.0, e1_value.1)?;
                         match binding_return {
                             StepEnvelope {
-                                result: FnReturn::FnResult(result),
+                                return_val: EvalReturn::FnResult(result),
                                 ..
                             } => match result? {
                                 FnEnvelope::TCResult(result) => {
@@ -538,7 +538,7 @@ impl DebuggerState for TLetState {
                                 FnEnvelope::OCResult(ocfn_return) => todo!(),
                             },
                             StepEnvelope {
-                                result: FnReturn::DebuggerState(_),
+                                return_val: EvalReturn::DebuggerState(_),
                                 ..
                             } => {
                                 panic!("Unexpected match");
@@ -548,7 +548,7 @@ impl DebuggerState for TLetState {
                     FnEnvelope::OCResult(ocfn_return) => todo!(),
                 },
                 StepEnvelope {
-                    result: FnReturn::DebuggerState(state),
+                    return_val: EvalReturn::DebuggerState(state),
                     ..
                 } => {
                     let e1_result = state.evaluate();
@@ -567,7 +567,7 @@ impl DebuggerState for TLetState {
                                 (self.binding_fn.take().unwrap())(e1_value.0, e1_value.1)?;
                             match binding_return {
                                 StepEnvelope {
-                                    result: FnReturn::FnResult(result),
+                                    return_val: EvalReturn::FnResult(result),
                                     ..
                                 } => match result? {
                                     FnEnvelope::TCResult(result) => {
@@ -587,7 +587,7 @@ impl DebuggerState for TLetState {
                                     FnEnvelope::OCResult(ocfn_return) => todo!(),
                                 },
                                 StepEnvelope {
-                                    result: FnReturn::DebuggerState(_),
+                                    return_val: EvalReturn::DebuggerState(_),
                                     ..
                                 } => {
                                     panic!("Unexpected match");
@@ -601,7 +601,7 @@ impl DebuggerState for TLetState {
         }
     }
 
-    fn handle_result(mut self: Box<Self>, result: FnEnvelope) -> Result<FnReturn, OxidizedError> {
+    fn handle_result(mut self: Box<Self>, result: FnEnvelope) -> Result<EvalReturn, OxidizedError> {
         match result {
             FnEnvelope::TCResult(result) => {
                 if DEBUG_OUTPUT {
@@ -634,7 +634,7 @@ impl DebuggerState for TLetState {
                         result_val.1,
                         current_bound_type,
                     )?;
-                    Ok(gc_return_val.result)
+                    Ok(gc_return_val.return_val)
                 } else {
                     self.e1_result = Some(result.clone());
                     let result_val = result?;
@@ -648,7 +648,7 @@ impl DebuggerState for TLetState {
                     }
                     let binding_return_val =
                         (self.binding_fn.take().unwrap())(result_val.0, result_val.1)?;
-                    if let FnReturn::FnResult(result) = binding_return_val.result {
+                    if let EvalReturn::FnResult(result) = binding_return_val.return_val {
                         match result? {
                             FnEnvelope::TCResult(result) => {
                                 self.binding_result = Some(result.clone())
@@ -658,7 +658,7 @@ impl DebuggerState for TLetState {
                     } else {
                         panic!("Unexpected match");
                     }
-                    Ok(FnReturn::DebuggerState(self))
+                    Ok(EvalReturn::DebuggerState(self))
                 }
             }
             FnEnvelope::OCResult(ocfn_return) => todo!(),
@@ -690,7 +690,7 @@ impl TLetState {
     ) -> StepResult {
         Ok(StepEnvelope {
             yielded_state: None,
-            result: FnReturn::DebuggerState(Box::new(Self {
+            return_val: EvalReturn::DebuggerState(Box::new(Self {
                 e1_fn: Some(Box::new(e1_fn)),
                 binding_fn: Some(Box::new(binding_fn)),
                 e2_fn: Some(Box::new(e2_fn)),

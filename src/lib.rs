@@ -14,10 +14,10 @@ macro_rules! set_snapshot_suffix {
     };
 }
 
-fn test() {
-    let mut x: u32 = 5;
-    let mut y: &mut u32 = &mut &mut x;
-    let mut z = *y;
-    y;
-    z;
-}
+// fn test() {
+//     let mut x: u32 = 5;
+//     let mut y: &mut u32 = &mut &mut x;
+//     let mut z = *y;
+//     y;
+//     z;
+// }

@@ -20,8 +20,7 @@ use super::data_structures::*;
 use crate::ast::Constant;
 use crate::ast::Expression;
 use crate::ast::OwnershipQualifier;
-use crate::debugging::debugger::FnEnvelope;
-use crate::debugging::debugger::FnReturn;
+use crate::debugging::debugger::EvalReturn;
 use crate::debugging::debugger::StepEnvelope;
 use crate::debugging::debugger::StepResult;
 use crate::debugging::tc_state::*;
@@ -65,10 +64,16 @@ impl Expression {
 
                         Ok(StepEnvelope {
                             yielded_state: None,
-                            result: FnReturn::FnResult(FnEnvelope::TCResult(Ok((stack_typing, Self::t_constant(&c)?)))), // FIXME: ok no these types are just no this needs to be fixed.
+                            return_val: EvalReturn::new_fn_result(
+                                stack_typing,
+                                Self::t_constant(&c)?,
+                            ),
                         })
                     },
-                    (stack_typing, continuation_typing),
+                    TCEnvStateCapture {
+                        stack_typing,
+                        continuation_typing,
+                    },
                     "t_constant".to_string(),
                 )
             }
@@ -100,14 +105,13 @@ impl Expression {
         place_expression: PlaceExpression,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCStepResult {
+    ) -> StepResult {
         if let Ok(typ) =
             stack_typing.flat_compute_type(place_expression.clone(), OwnershipQualifier::Shrd)
         {
             // FIXME: Something about this logic is wrong. I should be able to copy a value out from under a unique reference
             // but this shrd value for the ownership parameter prevents this, since the uniq references cannot be dereferenced
-            // in a shrd context. Do I literally just not have to check the ownership if I'm copying? That would make sense, but
-            // do I really want implicit logic like that? Rules seem to allow for copying under references and I need to figure out why.
+            // in a shrd context. Rules seem to allow for copying under references and I need to figure out why.
             if typ.copyable() {
                 let _ = stack_typing.ownership_check(
                     &continuation_typing,
@@ -153,7 +157,7 @@ impl Expression {
         typ: Type,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCStepResult {
+    ) -> StepResult {
         let st_clone = stack_typing.clone();
         let ct_clone = continuation_typing.clone();
         TExprState::new_obj(
@@ -169,10 +173,13 @@ impl Expression {
 
                 Ok(StepEnvelope {
                     yielded_state: None,
-                    result: TCReturn::TCResult(Ok((stack_typing, return_type))),
+                    return_val: EvalReturn::new_fn_result(stack_typing, return_type),
                 })
             },
-            (stack_typing, continuation_typing),
+            TCEnvStateCapture {
+                stack_typing,
+                continuation_typing,
+            },
             "t_move".to_string(),
         )
     }
@@ -181,7 +188,7 @@ impl Expression {
         typ: Type,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCStepResult {
+    ) -> StepResult {
         let st_clone = stack_typing.clone();
         let ct_clone = continuation_typing.clone();
         TExprState::new_obj(
@@ -194,10 +201,13 @@ impl Expression {
 
                 Ok(StepEnvelope {
                     yielded_state: None,
-                    result: TCReturn::TCResult(Ok((stack_typing, return_type))),
+                    return_val: EvalReturn::new_fn_result(stack_typing, return_type),
                 })
             },
-            (stack_typing, continuation_typing),
+            TCEnvStateCapture {
+                stack_typing,
+                continuation_typing,
+            },
             "t_copy".to_string(),
         )
     }
@@ -206,7 +216,7 @@ impl Expression {
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCStepResult {
+    ) -> StepResult {
         let st_clone = stack_typing.clone();
         let ct_clone = continuation_typing.clone();
         TExprState::new_obj(
@@ -253,13 +263,16 @@ impl Expression {
                     let test = stack_typing.set_region(ref_annotation.0.to_string(), region);
                     Ok(StepEnvelope {
                         yielded_state: None,
-                        result: TCReturn::TCResult(Ok((test, ref_type))),
+                        return_val: EvalReturn::new_fn_result(test, ref_type),
                     })
                 } else {
                     panic!("Unexpected error");
                 }
             },
-            (stack_typing.clone(), continuation_typing),
+            TCEnvStateCapture {
+                stack_typing: stack_typing.clone(),
+                continuation_typing,
+            },
             "t_borrow".to_string(),
         )
     }
@@ -268,7 +281,7 @@ impl Expression {
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCStepResult {
+    ) -> StepResult {
         let st_clone = stack_typing.clone();
         let cont_clone = continuation_typing.clone();
         let st_clone2 = stack_typing.clone();
@@ -319,10 +332,13 @@ impl Expression {
 
                 Ok(StepEnvelope {
                     yielded_state: None,
-                    result: TCReturn::TCResult(Ok((new_stack_typing, return_type))),
+                    return_val: EvalReturn::new_fn_result(new_stack_typing, return_type),
                 })
             },
-            (stack_typing.clone(), continuation_typing.clone()),
+            TCEnvStateCapture {
+                stack_typing: stack_typing.clone(),
+                continuation_typing: continuation_typing.clone(),
+            },
             "t_letrgn".to_string(),
         )
     }
@@ -332,7 +348,7 @@ impl Expression {
         place: Place,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCStepResult {
+    ) -> StepResult {
         if let Expression::Assign(_, e) = self {
             let st_clone = stack_typing.clone();
             let st_clone2 = stack_typing.clone();
@@ -389,13 +405,16 @@ impl Expression {
 
                     Ok(StepEnvelope {
                         yielded_state: None,
-                        result: TCReturn::TCResult(Ok((
+                        return_val: EvalReturn::new_fn_result(
                             gamma1_prime.set_type(place_type.clone(), bound_type),
                             get_unit(),
-                        ))),
+                        ),
                     })
                 },
-                (stack_typing.clone(), continuation_typing.clone()),
+                TCEnvStateCapture {
+                    stack_typing: stack_typing.clone(),
+                    continuation_typing: continuation_typing.clone(),
+                },
                 "t_assign".to_string(),
             )
         } else {
@@ -407,7 +426,7 @@ impl Expression {
         self,
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
-    ) -> TCStepResult {
+    ) -> StepResult {
         if let Expression::Sequence(e1, e2) = self {
             if let Expression::Let { .. } = *e1 {
                 e1.t_let(stack_typing, continuation_typing, *e2)
@@ -423,7 +442,10 @@ impl Expression {
                             continuation_typing.clone(),
                         )
                     },
-                    (stack_typing.clone(), cont_clone2),
+                    TCEnvStateCapture {
+                        stack_typing: stack_typing.clone(),
+                        continuation_typing: cont_clone2,
+                    },
                     "t_seq".to_string(),
                 )
             }
@@ -437,7 +459,7 @@ impl Expression {
         stack_typing: ConcreteTyping,
         continuation_typing: ConcreteTyping,
         e2: Expression,
-    ) -> TCStepResult {
+    ) -> StepResult {
         if let Expression::Let {
             name,
             type_annotation,
@@ -478,7 +500,7 @@ impl Expression {
 
                     Ok(StepEnvelope {
                         yielded_state: None,
-                        result: TCReturn::TCResult(Ok((gamma1_modified, bound_type))),
+                        return_val: EvalReturn::new_fn_result(gamma1_modified, bound_type),
                     })
                 },
                 |gamma1_modified: ConcreteTyping| {
@@ -490,13 +512,16 @@ impl Expression {
 
                     Ok(StepEnvelope {
                         yielded_state: None,
-                        result: TCReturn::TCResult(Ok((
+                        return_val: EvalReturn::new_fn_result(
                             gamma2.set_type(bound_type, dead_bound_type),
                             return_type2,
-                        ))),
+                        ),
                     })
                 },
-                (stack_typing.clone(), continuation_typing.clone()),
+                TCEnvStateCapture {
+                    stack_typing: stack_typing.clone(),
+                    continuation_typing: continuation_typing.clone(),
+                },
                 "t_let".to_string(),
             )
         } else {

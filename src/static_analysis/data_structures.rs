@@ -2,7 +2,7 @@ use crate::{
     ast::{BaseTypeAnnotation, Expression, OwnershipQualifier, TypeAnnotation},
     static_analysis::{auxiliary::err_if_dead, data_structures::TypeComputation::DerefChain},
 };
-use std::{fmt::Debug, ops::Index, panic, slice::SliceIndex, todo, vec};
+use std::{fmt::{Debug, Display}, ops::Index, panic, slice::SliceIndex, todo, vec};
 // use color_print;
 use thiserror::Error;
 

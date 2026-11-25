@@ -59,7 +59,8 @@ fn unwrap_state(result: StepResult) -> Box<dyn DebuggerState> {
 #[case(oxide_programs::reborrow(), 37)]
 #[case(oxide_programs::reborrow_err(), 38)]
 #[case(oxide_programs::reborrow_move_ref_err(), 39)]
-// #[case(oxide_programs::deref2x(), 40)]
+#[case(oxide_programs::deref2x(), 40)]
+#[case(oxide_programs::deref2x_shrd(), 41)]
 fn full_program(#[case] program: TestProgram, #[case] n: u32) {
     set_snapshot_suffix!("{}", n);
 

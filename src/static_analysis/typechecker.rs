@@ -23,6 +23,8 @@ use crate::ast::OwnershipQualifier;
 use crate::debugging::debugger::EvalReturn;
 use crate::debugging::debugger::StepEnvelope;
 use crate::debugging::debugger::StepResult;
+use crate::debugging::oc_state::OSafePlaceState;
+use crate::debugging::oc_state::OSafePlaceStateCapture;
 use crate::debugging::tc_state::*;
 use crate::static_analysis::auxiliary::err_if_dead;
 use crate::static_analysis::auxiliary::get_unit;
@@ -64,7 +66,7 @@ impl Expression {
 
                         Ok(StepEnvelope {
                             yielded_state: None,
-                            return_val: EvalReturn::new_fn_result(
+                            return_val: EvalReturn::new_tcfn_result(
                                 stack_typing,
                                 Self::t_constant(&c)?,
                             ),
@@ -109,9 +111,9 @@ impl Expression {
         if let Ok(typ) =
             stack_typing.flat_compute_type(place_expression.clone(), OwnershipQualifier::Shrd)
         {
-            // FIXME: Something about this logic is wrong. I should be able to copy a value out from under a unique reference
-            // but this shrd value for the ownership parameter prevents this, since the uniq references cannot be dereferenced
-            // in a shrd context. Rules seem to allow for copying under references and I need to figure out why.
+            // DISCREPANCY: Rust allows copying from under a unique reference. I can't figure out if this is supposed to be allowed or not
+            // in Oxide so I will assume it's not allowed. Not sure how it would work within Oxide's rules. Maybe it is impossible with the
+            // standard typing rules but Rust allows it through some implicit shenanigans.
             if typ.copyable() {
                 let _ = stack_typing.ownership_check(
                     &continuation_typing,
@@ -173,7 +175,7 @@ impl Expression {
 
                 Ok(StepEnvelope {
                     yielded_state: None,
-                    return_val: EvalReturn::new_fn_result(stack_typing, return_type),
+                    return_val: EvalReturn::new_tcfn_result(stack_typing, return_type),
                 })
             },
             TCEnvStateCapture {
@@ -201,7 +203,7 @@ impl Expression {
 
                 Ok(StepEnvelope {
                     yielded_state: None,
-                    return_val: EvalReturn::new_fn_result(stack_typing, return_type),
+                    return_val: EvalReturn::new_tcfn_result(stack_typing, return_type),
                 })
             },
             TCEnvStateCapture {
@@ -263,7 +265,7 @@ impl Expression {
                     let test = stack_typing.set_region(ref_annotation.0.to_string(), region);
                     Ok(StepEnvelope {
                         yielded_state: None,
-                        return_val: EvalReturn::new_fn_result(test, ref_type),
+                        return_val: EvalReturn::new_tcfn_result(test, ref_type),
                     })
                 } else {
                     panic!("Unexpected error");
@@ -332,7 +334,7 @@ impl Expression {
 
                 Ok(StepEnvelope {
                     yielded_state: None,
-                    return_val: EvalReturn::new_fn_result(new_stack_typing, return_type),
+                    return_val: EvalReturn::new_tcfn_result(new_stack_typing, return_type),
                 })
             },
             TCEnvStateCapture {
@@ -405,7 +407,7 @@ impl Expression {
 
                     Ok(StepEnvelope {
                         yielded_state: None,
-                        return_val: EvalReturn::new_fn_result(
+                        return_val: EvalReturn::new_tcfn_result(
                             gamma1_prime.set_type(place_type.clone(), bound_type),
                             get_unit(),
                         ),
@@ -500,7 +502,7 @@ impl Expression {
 
                     Ok(StepEnvelope {
                         yielded_state: None,
-                        return_val: EvalReturn::new_fn_result(gamma1_modified, bound_type),
+                        return_val: EvalReturn::new_tcfn_result(gamma1_modified, bound_type),
                     })
                 },
                 |gamma1_modified: ConcreteTyping| {
@@ -512,7 +514,7 @@ impl Expression {
 
                     Ok(StepEnvelope {
                         yielded_state: None,
-                        return_val: EvalReturn::new_fn_result(
+                        return_val: EvalReturn::new_tcfn_result(
                             gamma2.set_type(bound_type, dead_bound_type),
                             return_type2,
                         ),
@@ -675,45 +677,68 @@ impl ConcreteTyping {
         place: Place,
         ownership_qualifier: OwnershipQualifier,
         reborrow_exclusion_list: &VecSet<Place>,
-    ) -> Result<VecSet<Loan>, OxidizedError> {
-        let converted_place = place.clone().into();
+    ) -> StepResult {
+        let st_clone = self.clone();
+        let ct_clone = continuation_typing.clone();
+        let rb_excl_clone = reborrow_exclusion_list.clone();
         let place_clone = place.clone();
-        // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means. Maybe not relevant until I have tuples.
-        let check_res = (|| {
-            for region in self.regions.union(continuation_typing.clone().regions) {
-                for loan in region.clone().loans {
-                    if (ownership_qualifier == OwnershipQualifier::Uniq
-                        || loan.ownership_qualifier == OwnershipQualifier::Uniq)
-                        && Into::<PlaceExpression>::into(loan.place.clone())
-                            .overlaps(&converted_place)
-                    {
-                        return Err(OxidizedError::UnsafePlace {
-                            place: place_clone,
-                            ownership_qualifier: ownership_qualifier.to_string(),
-                            place_expression2: loan.place.into(),
-                            ownership_qualifier2: loan.ownership_qualifier.to_string(),
-                        });
+        let place_clone2 = place.clone();
+        OSafePlaceState::new_obj(
+            move || {
+                let converted_place = place_clone.clone().into();
+                let place_clone = place_clone.clone();
+                // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means. Maybe not relevant until I have tuples.
+                let check_res = (|| {
+                    for region in st_clone.regions.union(ct_clone.regions) {
+                        for loan in region.clone().loans {
+                            if (ownership_qualifier == OwnershipQualifier::Uniq
+                                || loan.ownership_qualifier == OwnershipQualifier::Uniq)
+                                && Into::<PlaceExpression>::into(loan.place.clone())
+                                    .overlaps(&converted_place)
+                            {
+                                return Err(OxidizedError::UnsafePlace {
+                                    place: place_clone,
+                                    ownership_qualifier: ownership_qualifier.to_string(),
+                                    place_expression2: loan.place.into(),
+                                    ownership_qualifier2: loan.ownership_qualifier.to_string(),
+                                });
+                            }
+                        }
+                    }
+                    Ok(())
+                })();
+
+                if let Err(err) = check_res {
+                    for (place, typ) in st_clone.explode() {
+                        if let TypeVariant::Reference(_) = typ.variant {
+                            if !rb_excl_clone.contains(&place) {
+                                return Err(err);
+                            }
+                        }
                     }
                 }
-            }
-            Ok(())
-        })();
 
-        if let Err(err) = check_res {
-            for (place, typ) in self.explode() {
-                if let TypeVariant::Reference(_) = typ.variant {
-                    if !reborrow_exclusion_list.contains(&place) {
-                        return Err(err);
-                    }
-                }
-            }
-        }
-
-        Ok(VecSet::new(vec![Loan {
-            ownership_qualifier,
-            place,
-            is_reborrow: false,
-        }]))
+                Ok(StepEnvelope {
+                    yielded_state: None,
+                    return_val: EvalReturn::new_ocfn_result(
+                        VecSet::new(vec![Loan {
+                            ownership_qualifier,
+                            place: place_clone2,
+                            is_reborrow: false,
+                        }]),
+                        VecSet::new_empty(),
+                    ),
+                })
+            },
+            OSafePlaceStateCapture {
+                stack_typing: self.clone(),
+                continuation_typing: continuation_typing.clone(),
+                place,
+                ownership_qualifier,
+                reborrow_exclusion_list: reborrow_exclusion_list.clone(),
+            },
+            "o_safe_place".to_string(),
+        )
     }
 
     // I can't think of how the continuation typing would be relevant in the rr or outlives rules but we'll see

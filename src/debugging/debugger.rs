@@ -31,8 +31,15 @@ pub enum EvalReturn {
 }
 
 impl EvalReturn {
-    pub fn new_fn_result(stack_typing: ConcreteTyping, typ: Type) -> Self {
+    pub fn new_tcfn_result(stack_typing: ConcreteTyping, typ: Type) -> Self {
         EvalReturn::FnResult(Ok(FnEnvelope::TCResult(Ok((stack_typing, typ)))))
+    }
+
+    pub fn new_ocfn_result(loans: VecSet<Loan>, reborrow_exclusion_list: VecSet<Place>) -> Self {
+        EvalReturn::FnResult(Ok(FnEnvelope::OCResult(Ok(super::oc_state::OCFnReturn {
+            loans,
+            reborrow_exclusion_list,
+        }))))
     }
 
     // pub fn new_debugger_state(state: Box<dyn DebuggerState>) {

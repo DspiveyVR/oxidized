@@ -1032,3 +1032,25 @@ pub fn deref2x() -> TestProgram {
         program_name: "deref2x",
     }
 }
+
+#[fixture]
+pub fn deref2x_shrd() -> TestProgram {
+    TestProgram {
+        oxide: "
+        letrgn<'x, 'y, 'z> {
+            let x: u32 = 5;
+            let y: &'x shrd u32 = &'x shrd x;
+            let z: &'y shrd &'x shrd u32 = &'y shrd y;
+            let w: u32 = **z
+        }
+        ",
+        rust: "
+        fn main() {
+            let mut x: u32 = 5;
+            let mut y: &u32 = &x;
+            let mut z: &&u32 = &y;
+            let mut w: u32 = **z;
+        }",
+        program_name: "deref2x_shrd",
+    }
+}

@@ -77,10 +77,7 @@ impl Display for ReferenceType {
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let variable_str = if let Some(variable) = &self.variable {
-            format!(
-                "{} := ",
-                variable
-            )
+            format!("{} := ", variable)
         } else {
             "".to_string()
         };
@@ -125,7 +122,7 @@ impl Display for ConcreteRegion {
     }
 }
 
-impl Display for VecSet<Loan> {
+impl<T: std::fmt::Display> Display for VecSet<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

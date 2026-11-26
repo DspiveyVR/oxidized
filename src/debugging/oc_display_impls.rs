@@ -16,12 +16,34 @@ impl Display for OSafePlaceState {
         if let StateCapture::OSafePlaceStateCapture(state) = self.get_state_capture() {
             write!(
                 f,
-                "OSafePlaceState:{} {{ Γ:{} Θ:{}\n(⊢ {} {}) }}",
+                "OSafePlaceState:{} {{ Γ:{} Θ:{}\n(⊢ {} {} {}) }}",
                 self.get_method_name(),
                 state.stack_typing,
                 state.continuation_typing,
                 state.ownership_qualifier.to_string(),
-                state.reborrow_exclusion_list
+                state.reborrow_exclusion_list,
+                state.place,
+            )
+        } else {
+            panic!("Unexpected match")
+        }
+    }
+}
+
+impl Display for ODerefState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let StateCapture::ODerefStateCapture(state) = self.get_state_capture() {
+            write!(
+                f,
+                "ODerefState:{} {{ Γ:{} Θ:{}\n(⊢ {} {} {}) Γ({}) = {} }}",
+                self.get_method_name(),
+                state.stack_typing,
+                state.continuation_typing,
+                state.ownership_qualifier.to_string(),
+                state.reborrow_exclusion_list,
+                state.place,
+                state.place,
+                state.ref_type
             )
         } else {
             panic!("Unexpected match")

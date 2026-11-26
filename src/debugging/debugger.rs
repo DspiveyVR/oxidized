@@ -5,6 +5,8 @@
 */
 
 use crate::debugging::oc_state::OCResult;
+use crate::debugging::oc_state::ODerefState;
+use crate::debugging::oc_state::ODerefStateCapture;
 use crate::debugging::oc_state::OSafePlaceStateCapture;
 use crate::debugging::tc_state::*;
 use crate::static_analysis::auxiliary::get_unit;
@@ -57,6 +59,7 @@ pub type StepResult = Result<StepEnvelope, OxidizedError>;
 #[derive(Clone)]
 pub enum StateCapture {
     OSafePlaceStateCapture(OSafePlaceStateCapture),
+    ODerefStateCapture(ODerefStateCapture),
     TCEnvStateCapture(TCEnvStateCapture),
 }
 

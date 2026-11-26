@@ -14,6 +14,10 @@ FIXME:
 there's a little more to the regions() metafunction than just accessing the regions.  this will be important for getting the regions
 in the cont typing.  probably can forget about it for now.
 
+FIXME:
+After working on the OC part of the debugger I want to work on refactoring my types to eliminate illegal states that necessitate the
+"Unexpected match" panics. Similarly for the panic on the ocsafeplace but if that's the only one then it might not be worth the refactor.
+
 */
 
 use super::data_structures::*;
@@ -111,7 +115,9 @@ impl Expression {
         if let Ok(typ) =
             stack_typing.flat_compute_type(place_expression.clone(), OwnershipQualifier::Shrd)
         {
-            // DISCREPANCY: Rust allows copying from under a unique reference. I can't figure out if this is supposed to be allowed or not
+            // DISCREPANCY:
+            // (This may be because of the new_excl_list reference originally being the excl list param in step 2 of o_deref but we'll see. If so, this note is invalid.)
+            // Rust allows copying from under a unique reference. I can't figure out if this is supposed to be allowed or not
             // in Oxide so I will assume it's not allowed. Not sure how it would work within Oxide's rules. Maybe it is impossible with the
             // standard typing rules but Rust allows it through some implicit shenanigans.
             if typ.copyable() {
@@ -597,6 +603,7 @@ impl ConcreteTyping {
         place: Place,
     ) -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
         if let TypeVariant::Reference(ref_type) = ref_type.variant {
+            // TODO: Step 1
             if ownership_qualifier > ref_type.ownership_qualifier {
                 return Err(OxidizedError::ViolatedOwnershipOrdering(ref_type));
             }
@@ -619,7 +626,9 @@ impl ConcreteTyping {
                 .union(VecSet::new(vec![place.clone()]));
 
             let mut new_loans = VecSet::new_empty();
+            // TODO: probably a part of internal OC debugger logic
             for loan in r_loans {
+                // TODO: recursive check fn
                 new_loans = new_loans.union(self._ownership_check(
                     continuation_typing,
                     loan.into(),
@@ -627,12 +636,14 @@ impl ConcreteTyping {
                     &new_excl_list,
                 )?);
             }
+            // TODO: probably a part of internal OC debugger logic
             new_loans.push(Loan {
                 ownership_qualifier,
                 place: place.clone(),
                 is_reborrow: true,
             });
 
+            // TODO: Step 2
             let converted_place = place.clone().into();
             // TODO: Figure out the condition about existence of a type in gamma but not theta. Not really sure what it means. Maybe not relevant until I have tuples.
             let check_res = (|| {
@@ -658,7 +669,7 @@ impl ConcreteTyping {
             if let Err(err) = check_res {
                 for (place, typ) in self.explode() {
                     if let TypeVariant::Reference(_) = typ.variant {
-                        if !reborrow_exclusion_list.contains(&place) {
+                        if !new_excl_list.contains(&place) {
                             return Err(err);
                         }
                     }

@@ -26,16 +26,17 @@ pub struct ODerefStateCapture {
 
 pub struct ODerefState {
     step1_fn: Option<Box<OC0ParamFn>>,
-    recursive_check_fn: Option<Box<OCDerefExclParamFn>>,
-    step2_fn: Option<Box<OCDerefExclParamFn>>,
+    recursive_check_fn: Option<Box<OCDerefRecursiveCheckFn>>,
+    step2_fn: Option<Box<OCDerefStep2Fn>>,
     r_loans: Option<IntoIter<Loan>>,
     new_loans: Option<VecSet<Loan>>,
+    new_excl_list: Option<VecSet<Place>>,
     state_capture: ODerefStateCapture,
     method_name: String,
 }
 
 impl DebuggerState for ODerefState {
-    fn step_into(self: Box<Self>) -> StepResult {
+    fn step_into(mut self: Box<Self>) -> StepResult {
         if let Some(_) = self.step1_fn {
             if DEBUG_OUTPUT {
                 cprintln!("<red>[[step_into]]\n{}</red>", self);
@@ -44,9 +45,32 @@ impl DebuggerState for ODerefState {
 
             let mut s1_return = (self.step1_fn.take().unwrap())()?;
             s1_return.yielded_state = Some(self);
-            // Ok(e_return)
+            Ok(s1_return)
         } else if let Some(_) = self.recursive_check_fn {
-            todo!()
+            match (
+                self.r_loans.as_mut(),
+                self.new_loans.as_ref(),
+                self.new_excl_list.as_ref(),
+            ) {
+                (Some(r_loans), Some(new_loans), Some(new_excl_list)) => {
+                    if let Some(loan) = r_loans.next() {
+                        let mut check_return =
+                            (self.recursive_check_fn.as_ref().unwrap())(loan, new_excl_list)?;
+                        check_return.yielded_state = Some(self);
+                        Ok(check_return)
+                    } else {
+                        self.recursive_check_fn = None;
+                        let return_val =
+                            EvalReturn::new_ocfn_result(new_loans.clone(), new_excl_list.clone());
+                        let check_return = StepEnvelope {
+                            yielded_state: Some(self),
+                            return_val,
+                        };
+                        Ok(check_return)
+                    }
+                }
+                _ => panic!("Unexpected match"),
+            }
         } else {
             self.step_over()
         }
@@ -65,26 +89,27 @@ impl DebuggerState for ODerefState {
     }
 
     fn get_state_capture(&self) -> StateCapture {
-        todo!()
+        StateCapture::ODerefStateCapture(self.state_capture.clone())
     }
 
     fn get_state_name(&self) -> String {
-        todo!()
+        "ODerefState".to_string()
     }
 
     fn get_method_name(&self) -> String {
-        todo!()
+        self.method_name.clone()
     }
 }
 
 impl ODerefState {
     pub fn new_obj<
         OC0ParamFn: FnOnce() -> StepResult + 'static,
-        OCDerefExclParamFn: FnOnce(VecSet<Place>) -> StepResult + 'static,
+        OCDerefRecursiveCheckFn: Fn(Loan, &VecSet<Place>) -> StepResult + 'static,
+        OCDerefStep2Fn: FnOnce(VecSet<Place>) -> StepResult + 'static,
     >(
         step1_fn: OC0ParamFn,
-        recursive_check_fn: OCDerefExclParamFn,
-        step2_fn: OCDerefExclParamFn,
+        recursive_check_fn: OCDerefRecursiveCheckFn,
+        step2_fn: OCDerefStep2Fn,
         state_capture: ODerefStateCapture,
         method_name: String,
     ) -> StepResult {
@@ -96,6 +121,9 @@ impl ODerefState {
                 step2_fn: Some(Box::new(step2_fn)),
                 state_capture,
                 method_name,
+                new_excl_list: None,
+                new_loans: None,
+                r_loans: None,
             })),
         })
     }
@@ -111,7 +139,8 @@ pub struct OSafePlaceStateCapture {
 }
 
 type OC0ParamFn = dyn FnOnce() -> StepResult;
-type OCDerefExclParamFn = dyn FnOnce(VecSet<Place>) -> StepResult;
+type OCDerefRecursiveCheckFn = dyn Fn(Loan, &VecSet<Place>) -> StepResult;
+type OCDerefStep2Fn = dyn FnOnce(VecSet<Place>) -> StepResult;
 
 pub struct OSafePlaceState {
     check_fn: Option<Box<OC0ParamFn>>,

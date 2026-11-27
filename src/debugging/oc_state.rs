@@ -47,39 +47,33 @@ impl DebuggerState for ODerefState {
             s1_return.yielded_state = Some(self);
             Ok(s1_return)
         } else if let Some(_) = self.recursive_check_fn {
-            match (
-                self.r_loans.as_mut(),
-                self.new_loans.as_ref(),
-                self.new_excl_list.as_ref(),
-            ) {
-                (Some(r_loans), Some(new_loans), Some(new_excl_list)) => {
-                    if let Some(loan) = r_loans.next() {
-                        if DEBUG_OUTPUT {
-                            cprintln!("<red>[[step_into]]\n{}</red>", self);
-                            cprintln!("<yellow>[called]: recursive_check_fn()</yellow>");
-                        }
-
-                        let mut check_return =
-                            (self.recursive_check_fn.as_ref().unwrap())(loan, new_excl_list)?;
-                        check_return.yielded_state = Some(self);
-                        Ok(check_return)
-                    } else {
-                        if DEBUG_OUTPUT {
-                            cprintln!("<red>[[step_into]]\n{}</red>", self);
-                            cprintln!("<yellow>[done checking loans in r]</yellow>");
-                        }
-
-                        self.recursive_check_fn = None;
-                        let return_val =
-                            EvalReturn::new_ocfn_result(new_loans.clone(), new_excl_list.clone());
-                        let check_return = StepEnvelope {
-                            yielded_state: Some(self),
-                            return_val,
-                        };
-                        Ok(check_return)
-                    }
+            let r_loans = self.r_loans.as_mut().unwrap();
+            let new_loans = self.new_loans.as_ref().unwrap();
+            let new_excl_list = self.new_excl_list.as_ref().unwrap();
+            if let Some(loan) = r_loans.next() {
+                if DEBUG_OUTPUT {
+                    cprintln!("<red>[[step_into]]\n{}</red>", self);
+                    cprintln!("<yellow>[called]: recursive_check_fn()</yellow>");
                 }
-                _ => panic!("Unexpected match"),
+
+                let mut check_return =
+                    (self.recursive_check_fn.as_ref().unwrap())(loan, new_excl_list)?;
+                check_return.yielded_state = Some(self);
+                Ok(check_return)
+            } else {
+                if DEBUG_OUTPUT {
+                    cprintln!("<red>[[step_into]]\n{}</red>", self);
+                    cprintln!("<yellow>[done checking loans in r]</yellow>");
+                }
+
+                self.recursive_check_fn = None;
+                let return_val =
+                    EvalReturn::new_ocfn_result(new_loans.clone(), new_excl_list.clone());
+                let check_return = StepEnvelope {
+                    yielded_state: Some(self),
+                    return_val,
+                };
+                Ok(check_return)
             }
         } else {
             self.step_over()
@@ -87,6 +81,24 @@ impl DebuggerState for ODerefState {
     }
 
     fn step_over(mut self: Box<Self>) -> StepResult {
+        let unwrap_fn_envelope =
+            |env: FnEnvelope| -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
+                match env {
+                    FnEnvelope::OCResult(fn_return) => {
+                        let fn_return = fn_return?;
+                        Ok((fn_return.loans, fn_return.reborrow_exclusion_list))
+                    }
+                    FnEnvelope::TCResult(_) => panic!("Unexpected match"),
+                }
+            };
+        let extract_eval_return = |eval_return: EvalReturn| match eval_return {
+            EvalReturn::FnResult(env) => unwrap_fn_envelope(env?),
+            EvalReturn::DebuggerState(state) => {
+                let env = state.evaluate()?;
+                unwrap_fn_envelope(env)
+            }
+        };
+
         if DEBUG_OUTPUT {
             cprintln!("<red>[[step_over]]\n{}</red>", self);
         }
@@ -94,92 +106,69 @@ impl DebuggerState for ODerefState {
             if DEBUG_OUTPUT {
                 cprintln!("<yellow>[called]: step1_fn()</yellow>");
             }
-            let mut s1_return = (self.step1_fn.take().unwrap())()?;
-            let (mut loans, mut excl_list) = (VecSet::new_empty(), VecSet::new_empty());
-            let mut unwrap_envelope =
-                |env: FnEnvelope| -> Result<(VecSet<Loan>, VecSet<Place>), OxidizedError> {
-                    match env {
-                        FnEnvelope::OCResult(fn_return) => {
-                            let fn_return = fn_return?;
-                            Ok((fn_return.loans, fn_return.reborrow_exclusion_list))
-                        }
-                        FnEnvelope::TCResult(_) => panic!("Unexpected match"),
-                    }
-                };
-            let uhhh
-            match s1_return.return_val {
-                EvalReturn::FnResult(env) => {
-                    (loans, excl_list) = unwrap_envelope(env?)?;
-                }
-                EvalReturn::DebuggerState(state) => {
-                    let env = state.evaluate()?;
-                    (loans, excl_list) = unwrap_envelope(env)?;
-                }
-            }
+            let s1_return = (self.step1_fn.take().unwrap())()?;
 
-            let r_loans = loans;
+            let (r_loans, new_excl_list) = extract_eval_return(s1_return.return_val)?;
             let mut new_loans = VecSet::new_empty();
-            let new_excl_list = &excl_list;
 
+            let check_fn = self.recursive_check_fn.as_ref().unwrap();
             for loan in r_loans {
                 if DEBUG_OUTPUT {
                     cprintln!("<yellow>[called]: recursive_check_fn()</yellow>");
                 }
-                let mut check_return =
-                    (self.recursive_check_fn.as_ref().unwrap())(loan, new_excl_list)?;
-                check_return.yielded_state = Some(self);
+                let check_return = check_fn(loan, &new_excl_list)?;
+                new_loans = extract_eval_return(check_return.return_val)?.0;
             }
             self.recursive_check_fn = None;
-            todo!()
-        } else if let Some(_) = self.recursive_check_fn {
-            match (
-                self.r_loans.as_mut(),
-                self.new_loans.as_ref(),
-                self.new_excl_list.as_ref(),
-            ) {
-                (Some(r_loans), Some(new_loans), Some(new_excl_list)) => {
-                    if let Some(loan) = r_loans.next() {
-                        if DEBUG_OUTPUT {
-                            cprintln!("<red>[[step_into]]\n{}</red>", self);
-                            cprintln!("<yellow>[called]: recursive_check_fn()</yellow>");
-                        }
+            self.new_loans = Some(new_loans);
 
-                        let mut check_return =
-                            (self.recursive_check_fn.as_ref().unwrap())(loan, new_excl_list)?;
-                        check_return.yielded_state = Some(self);
-                        Ok(check_return)
-                    } else {
-                        if DEBUG_OUTPUT {
-                            cprintln!("<red>[[step_into]]\n{}</red>", self);
-                            cprintln!("<yellow>[done checking loans in r]</yellow>");
-                        }
-
-                        self.recursive_check_fn = None;
-                        let return_val =
-                            EvalReturn::new_ocfn_result(new_loans.clone(), new_excl_list.clone());
-                        let check_return = StepEnvelope {
-                            yielded_state: Some(self),
-                            return_val,
-                        };
-                        Ok(check_return)
-                    }
-                }
-                _ => panic!("Unexpected match"),
+            if DEBUG_OUTPUT {
+                cprintln!("<yellow>[called]: step2_fn()</yellow>");
             }
+            let mut s2_return = (self.step2_fn.take().unwrap())(new_excl_list)?;
+            s2_return.yielded_state = Some(self);
+            Ok(s2_return)
+        } else if let Some(_) = self.recursive_check_fn {
+            let r_loans = self.r_loans.clone().unwrap();
+            let new_excl_list = self.new_excl_list.clone().unwrap();
+
+            let mut new_loans = VecSet::new_empty();
+
+            let check_fn = self.recursive_check_fn.as_ref().unwrap();
+            for loan in r_loans {
+                if DEBUG_OUTPUT {
+                    cprintln!("<yellow>[called]: recursive_check_fn()</yellow>");
+                }
+                let check_return = check_fn(loan, &new_excl_list)?;
+                new_loans = extract_eval_return(check_return.return_val)?.0;
+            }
+            self.recursive_check_fn = None;
+            self.new_loans = Some(new_loans);
+
+            if DEBUG_OUTPUT {
+                cprintln!("<yellow>[called]: step2_fn()</yellow>");
+            }
+            let mut s2_return = (self.step2_fn.take().unwrap())(new_excl_list)?;
+            s2_return.yielded_state = Some(self);
+            Ok(s2_return)
         } else {
             if DEBUG_OUTPUT {
                 cprintln!("<yellow>[called]: step2_fn()</yellow>");
             }
 
-            let mut s1_return =
+            let mut s2_return =
                 (self.step2_fn.take().unwrap())(self.new_excl_list.clone().unwrap())?;
-            s1_return.yielded_state = Some(self);
-            Ok(s1_return)
+            s2_return.yielded_state = Some(self);
+            Ok(s2_return)
         }
     }
 
     fn evaluate(self: Box<Self>) -> GenericFnResult {
-        todo!()
+        if DEBUG_OUTPUT {
+            cprintln!("<red>[[evaluate]]\n{}</red>", self);
+        }
+        let mut debugger = Debugger::new(self);
+        debugger._evaluate()
     }
 
     fn handle_result(self: Box<Self>, result: FnEnvelope) -> Result<EvalReturn, OxidizedError> {
